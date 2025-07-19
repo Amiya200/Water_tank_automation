@@ -11,7 +11,8 @@ const char* htmlContent = R"rawliteral(
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #f4f8fb;
+      background-color: #000; /* Black background */
+      color: #fff;
       margin: 0;
       padding: 20px;
       text-align: center;
@@ -23,19 +24,19 @@ const char* htmlContent = R"rawliteral(
     .tank-level {
       width: 100px;
       height: 150px;
-      border: 2px solid #aaa;
+      border: 2px solid #555;
       margin: 20px auto;
       border-radius: 8px;
       position: relative;
       overflow: hidden;
-      background: #fff;
+      background: #222;
     }
     .tank-fill {
       position: absolute;
       bottom: 0;
       width: 100%;
-      background-color: #007bff;
-      color: yellow;
+      background-color: #00aaff;
+      color: #fff;
       text-align: center;
       font-weight: bold;
       font-size: 18px;
@@ -50,14 +51,17 @@ const char* htmlContent = R"rawliteral(
     .ground { background: #007bff; color: white; }
     .available { background: #28a745; color: white; }
 
-    h2 { margin-top: 30px; }
+    h2 {
+      margin-top: 30px;
+      color: #ffffff;
+    }
 
     .button-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
-      max-width: 500px;
-      margin: 20px auto;
+      max-width: 300px;
+      margin: 10px auto;
     }
 
     .button {
@@ -78,6 +82,21 @@ const char* htmlContent = R"rawliteral(
     .twist { background-color: #20c997; }
     .semi { background-color: #ffc107; color: black; }
     .manual { background-color: #0d6efd; }
+
+    a.settings {
+      display: block;
+      margin-top: 20px;
+      text-decoration: none;
+      color: #0d6efd;
+      font-weight: bold;
+    }
+
+    a.button {
+      text-decoration: none;
+      text-align: center;
+      line-height: 40px;
+    }
+
   </style>
 </head>
 <body>
@@ -92,33 +111,32 @@ const char* htmlContent = R"rawliteral(
     <span class="label available">Available</span>
   </div>
 
-  <h2>Control Panel</h2>
+  <h2>Motor Status</h2>
   <div class="button-grid">
+    <button class="button error" onclick="fetch('/error_box')">Error Box</button>
     <button class="button on" onclick="fetch('/manual/on')">ON</button>
     <button class="button off" onclick="fetch('/manual/off')">OFF</button>
-    <button class="button manual" onclick="location.href='/manual'">Manual Mode</button>
-    <button class="button timer" onclick="location.href='/timer'">Timer</button>
-    <button class="button countdown" onclick="location.href='/countdown'">Countdown</button>
-    <button class="button search" onclick="location.href='/search'">Search</button>
-    <button class="button twist" onclick="location.href='/twist'">Twist</button>
-    <button class="button semi" onclick="location.href='/semi'">Semi-Auto</button>
-    <button class="button error" onclick="location.href='/error_box'">Error Box</button>
   </div>
 
+  <div class="button-grid">
+    <a href="/timer" class="button timer">Timer Mode</a>
+    <a href="/search" class="button search">Search Mode</a>
+    <a href="/countdown" class="button countdown">Count Down</a>
+    <a href="/twist" class="button twist">Twist Mode</a>
+    <a href="/semi" class="button semi">Semi-Auto</a>
+    <a href="/manual" class="button manual">Manual Mode</a>
+  </div>
+
+  <a href="/settings" class="settings">Settings</a>
+
   <script>
-    async function updateLevel(){
-      try {
-        const res = await fetch('/status');
-        const data = await res.json();
+    setInterval(() => {
+      fetch('/status').then(res => res.json()).then(data => {
         const fill = document.getElementById('fill');
         fill.style.height = data.level + '%';
-        fill.textContent = data.level + '%';
-      } catch (e) {
-        console.error('Failed to fetch level:', e);
-      }
-    }
-    setInterval(updateLevel, 5000);
-    updateLevel();
+        fill.innerText = data.level + '%';
+      });
+    }, 5000);
   </script>
 </body>
 </html>

@@ -1,4 +1,3 @@
-#pragma once
 const char* timerModeHtml = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -6,38 +5,79 @@ const char* timerModeHtml = R"rawliteral(
   <title>Timer Mode</title>
   <style>
     body {
+      font-family: 'Segoe UI', sans-serif;
       background-color: #000;
       color: white;
-      font-family: sans-serif;
       text-align: center;
-      padding: 40px;
+      padding: 20px;
     }
-    input {
+    .form-container {
+      margin: 30px auto;
+      max-width: 400px;
+      background: #111;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    input[type="time"] {
+      width: 45%;
       padding: 10px;
-      font-size: 20px;
-      width: 200px;
       margin: 10px;
-    }
-    .button {
-      padding: 12px 25px;
-      font-size: 20px;
-      background: #0dcaf0;
-      color: white;
+      font-size: 16px;
+      border-radius: 5px;
       border: none;
-      border-radius: 8px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #0dcaf0;
+      color: black;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #28a745;
     }
   </style>
 </head>
 <body>
   <h1>Timer Mode</h1>
-  <form action="/set_timer" method="GET">
-    <label>Start Time:</label><br>
-    <input type="time" name="start"><br>
-    <label>Stop Time:</label><br>
-    <input type="time" name="stop"><br><br>
-    <input type="submit" class="button" value="Set Timer">
-  </form>
-  <a href="/"><button class="button">Back</button></a>
+  <div class="form-container">
+    <form id="timerForm">
+      <label>Set ON Time:</label><br>
+      <input type="time" id="onTime" required><br>
+      <label>Set OFF Time:</label><br>
+      <input type="time" id="offTime" required><br>
+      <button type="submit">Set Timer</button>
+    </form>
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    document.getElementById('timerForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var onTime = document.getElementById('onTime').value;
+      var offTime = document.getElementById('offTime').value;
+
+      fetch('/timer/set?on=' + onTime + '&off=' + offTime)
+        .then(function(response) {
+          if (response.ok) {
+            document.getElementById('result').innerHTML =
+              "✅ Timer Set: ON at <b>" + onTime + "</b>, OFF at <b>" + offTime + "</b>";
+          } else {
+            document.getElementById('result').innerHTML =
+              "❌ Failed to set timer.";
+          }
+        })
+        .catch(function() {
+          document.getElementById('result').innerHTML = "❌ Failed to connect.";
+        });
+    });
+  </script>
 </body>
 </html>
 )rawliteral";
