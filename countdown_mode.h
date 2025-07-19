@@ -7,7 +7,7 @@ const char* countdownModeHtml = R"rawliteral(
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
     body {
-      background-color: #121212;
+      background-color: #eaecee;
       color: #e0e0e0;
       font-family: 'Segoe UI', sans-serif;
       margin: 0;

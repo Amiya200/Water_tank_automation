@@ -10,7 +10,7 @@ const char* timerModeHtml = R"rawliteral(
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #000;
+      background-color: #eaecee ;
       color: white;
       text-align: center;
       padding: 20px;

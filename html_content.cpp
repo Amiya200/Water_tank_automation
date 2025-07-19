@@ -1,6 +1,4 @@
-
-#include "html_content.h"
-
+#pragma once
 const char* htmlContent = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -11,16 +9,18 @@ const char* htmlContent = R"rawliteral(
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #000; /* Black background */
-      color: #fff;
+      background-color: #f4ecf7; /* Sky Blue */
+      color: #000;
       margin: 0;
       padding: 20px;
       text-align: center;
     }
+
     .logo {
       max-width: 140px;
       margin: 10px auto;
     }
+
     .tank-level {
       width: 100px;
       height: 150px;
@@ -29,8 +29,9 @@ const char* htmlContent = R"rawliteral(
       border-radius: 8px;
       position: relative;
       overflow: hidden;
-      background: #222;
+      background: #ffffff;
     }
+
     .tank-fill {
       position: absolute;
       bottom: 0;
@@ -41,6 +42,7 @@ const char* htmlContent = R"rawliteral(
       font-weight: bold;
       font-size: 18px;
     }
+
     .label {
       display: inline-block;
       margin: 5px 10px;
@@ -48,12 +50,13 @@ const char* htmlContent = R"rawliteral(
       border-radius: 5px;
       font-weight: bold;
     }
+
     .ground { background: #007bff; color: white; }
     .available { background: #28a745; color: white; }
 
     h2 {
       margin-top: 30px;
-      color: #ffffff;
+      color: #000;
     }
 
     .button-grid {
@@ -73,15 +76,14 @@ const char* htmlContent = R"rawliteral(
       color: white;
     }
 
-    .error { background-color: #dc3545; }
-    .on { background-color: #198754; }
-    .off { background-color: #6c757d; }
-    .timer { background-color: #0dcaf0; }
-    .search { background-color: #6610f2; }
-    .countdown { background-color: #fd7e14; }
-    .twist { background-color: #20c997; }
+    .toggle { background-color: #ff5722; }
+    .error { background-color: #b00020; }
+    .timer { background-color: #0dcaf0; color: black; }
+    .search { background-color: #6200ea; }
+    .countdown { background-color: #fb8c00; }
+    .twist { background-color: #009688; }
     .semi { background-color: #ffc107; color: black; }
-    .manual { background-color: #0d6efd; }
+    .manual { background-color: #1976d2; }
 
     a.settings {
       display: block;
@@ -95,6 +97,12 @@ const char* htmlContent = R"rawliteral(
       text-decoration: none;
       text-align: center;
       line-height: 40px;
+    }
+
+    #motorMsg {
+      margin-top: 10px;
+      font-size: 16px;
+      color: green;
     }
 
   </style>
@@ -111,11 +119,10 @@ const char* htmlContent = R"rawliteral(
     <span class="label available">Available</span>
   </div>
 
-  <h2>Motor Status</h2>
+  <h2>Motor Control</h2>
   <div class="button-grid">
-    <button class="button error" onclick="fetch('/error_box')">Error Box</button>
-    <button class="button on" onclick="fetch('/manual/on')">ON</button>
-    <button class="button off" onclick="fetch('/manual/off')">OFF</button>
+    <button class="button toggle" id="motorToggleBtn" onclick="toggleMotor()">Loading...</button>
+    <button class="button error" onclick="location.href='/error_box'">Error Box</button>
   </div>
 
   <div class="button-grid">
@@ -129,14 +136,42 @@ const char* htmlContent = R"rawliteral(
 
   <a href="/settings" class="settings">Settings</a>
 
+  <p id="motorMsg"></p>
+
   <script>
-    setInterval(() => {
+    let motorIsOn = false;
+
+    function updateTankLevel() {
       fetch('/status').then(res => res.json()).then(data => {
         const fill = document.getElementById('fill');
         fill.style.height = data.level + '%';
         fill.innerText = data.level + '%';
       });
-    }, 5000);
+    }
+
+    function getMotorStatus() {
+      fetch('/motor_status').then(res => res.text()).then(status => {
+        motorIsOn = (status.trim() === "ON");
+        document.getElementById("motorToggleBtn").innerText = motorIsOn ? "Turn OFF" : "Turn ON";
+      });
+    }
+
+    function toggleMotor() {
+      const endpoint = motorIsOn ? "/manual/off" : "/manual/on";
+      fetch(endpoint)
+        .then(res => res.text())
+        .then(msg => {
+          document.getElementById("motorMsg").innerText = "✅ " + msg;
+          motorIsOn = !motorIsOn;
+          document.getElementById("motorToggleBtn").innerText = motorIsOn ? "Turn OFF" : "Turn ON";
+        });
+    }
+
+    setInterval(updateTankLevel, 5000);
+    window.onload = () => {
+      updateTankLevel();
+      getMotorStatus();
+    };
   </script>
 </body>
 </html>

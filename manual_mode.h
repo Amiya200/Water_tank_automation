@@ -7,7 +7,7 @@ const char* manualModeHtml = R"rawliteral(
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
     body {
-      background-color: #121212;
+      background-color: #fbeee6;
       color: white;
       font-family: 'Segoe UI', sans-serif;
       text-align: center;
