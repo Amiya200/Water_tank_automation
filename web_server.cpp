@@ -26,6 +26,7 @@ String twistValue = "";
 String semiAutoOption = "";
 String errorMessage = "";
 
+bool motorState = false;  // false = OFF, true = ON
 void updateSimulatedWaterLevel() {
   simulatedWaterLevel = random(30, 100);  // or analogRead mapping
 }
@@ -133,15 +134,27 @@ void start_webserver() {
   server.on("/semi", HTTP_GET, []() {
     server.send(200, "text/html", semiAutoModeHtml);
   });
-  server.on("/semi_submit", HTTP_ANY, []() {
-    if (server.hasArg("option")) {
-      semiAutoOption = server.arg("option");
-      Serial.println("[Semi-Auto] Option: " + semiAutoOption);
-      server.send(200, "text/plain", "Semi-auto option received: " + semiAutoOption);
+
+  server.on("/semi_toggle", HTTP_GET, []() {
+    motorState = !motorState;
+
+    if (motorState) {
+      digitalWrite(MOTOR_PIN, HIGH);
+      Serial.println("[Semi-Auto] Motor STARTED");
+      server.send(200, "text/plain", "ON");
     } else {
-      server.send(400, "text/plain", "Missing semi-auto option");
+      digitalWrite(MOTOR_PIN, LOW);
+      Serial.println("[Semi-Auto] Motor STOPPED");
+      server.send(200, "text/plain", "OFF");
     }
   });
+
+  server.on("/motor_status", HTTP_GET, []() {
+    server.send(200, "text/plain", motorState ? "ON" : "OFF");
+  });
+
+
+
 
   // Water level status
   server.on("/status", HTTP_GET, []() {
