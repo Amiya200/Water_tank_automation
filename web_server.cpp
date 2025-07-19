@@ -33,7 +33,10 @@ bool motorState = false;  // false = OFF, true = ON
 void updateSimulatedWaterLevel() {
   simulatedWaterLevel = random(30, 100);  // or analogRead mapping
 }
-
+void setMotor(bool state) {
+  motorState = true;
+  digitalWrite(MOTOR_PIN, state ? HIGH : LOW);
+}
 void start_webserver() {
   pinMode(MOTOR_PIN, OUTPUT);
   digitalWrite(MOTOR_PIN, LOW);
@@ -47,14 +50,15 @@ void start_webserver() {
     server.send(200, "text/html", manualModeHtml);
   });
   server.on("/manual/on", HTTP_GET, []() {
-    digitalWrite(MOTOR_PIN, HIGH);
-    Serial.println("[Manual] Pump turned ON");
-    server.send(200, "text/plain", "Pump turned ON");
+    setMotor(true);
+    Serial.println("[Manual] Motor turned ON");
+    server.send(200, "text/plain", "Motor turned ON");
   });
+
   server.on("/manual/off", HTTP_GET, []() {
-    digitalWrite(MOTOR_PIN, LOW);
-    Serial.println("[Manual] Pump turned OFF");
-    server.send(200, "text/plain", "Pump turned OFF");
+    setMotor(false);
+    Serial.println("[Manual] Motor turned OFF");
+    server.send(200, "text/plain", "Motor turned OFF");
   });
 
   // Countdown mode
@@ -214,10 +218,7 @@ void start_webserver() {
   server.begin();
   Serial.println("HTTP server started");
 }
-void setMotor(bool state) {
-  motorState = true;
-  digitalWrite(MOTOR_PIN, state ? HIGH : LOW);
-}
+
 
 void handleCountdownLogic() {
   if (countdownActive && millis() > countdownEndTime) {
@@ -231,9 +232,5 @@ void handleCountdownLogic() {
 
 void handleClient() {
   server.handleClient();
-  handleCountdownLogic(); // ✅ actually runs countdown toggling
+  handleCountdownLogic();  // ✅ actually runs countdown toggling
 }
-
-
-
-
