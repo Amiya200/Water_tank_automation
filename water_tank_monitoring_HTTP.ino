@@ -1,0 +1,20 @@
+#include "web_server.h"
+#include "wifi_manager.h"
+
+unsigned long lastUpdate = 0;
+
+void setup() {
+    Serial.begin(115200);
+    wifi_init();
+    start_webserver();
+    randomSeed(analogRead(0));  // Random seed for simulated values
+}
+
+void loop() {
+    handleClient();
+
+    if (millis() - lastUpdate > 5000) {
+        updateSimulatedWaterLevel();  // Update simulated water level
+        lastUpdate = millis();
+    }
+}
