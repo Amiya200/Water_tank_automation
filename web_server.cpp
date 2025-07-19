@@ -92,15 +92,26 @@ void start_webserver() {
   server.on("/search", HTTP_GET, []() {
     server.send(200, "text/html", searchModeHtml);
   });
-  server.on("/search_submit", HTTP_ANY, []() {
-    if (server.hasArg("query")) {
-      searchQuery = server.arg("query");
-      Serial.println("[Search] Query: " + searchQuery);
-      server.send(200, "text/plain", "Search received: " + searchQuery);
-    } else {
-      server.send(400, "text/plain", "Missing search query");
+server.on("/search_submit", HTTP_GET, []() {
+  String gap = server.arg("gap");
+  String dryRun = server.arg("dryrun");
+  String days = "";
+
+  int totalArgs = server.args();
+  for (int i = 0; i < totalArgs; i++) {
+    if (server.argName(i) == "days") {
+      days += server.arg(i) + " ";
     }
-  });
+  }
+
+  Serial.println("[Search Mode]");
+  Serial.println("Testing Gap: " + gap);
+  Serial.println("Dry Run Time: " + dryRun);
+  Serial.println("Selected Days: " + days);
+
+  server.send(200, "text/plain", "Search settings saved.");
+});
+
 
   // Twist mode
   server.on("/twist", HTTP_GET, []() {
