@@ -16,6 +16,9 @@ WebServer server(80);
 
 #define MOTOR_PIN 5
 int simulatedWaterLevel = 70;
+unsigned long countdownEndTime = 0;
+bool countdownActive = false;
+bool motorExpectedState = false;  // true = ON, false = OFF
 
 // Global variables to hold user input from different modes
 String countdownDuration = "";
@@ -58,15 +61,38 @@ void start_webserver() {
   server.on("/countdown", HTTP_GET, []() {
     server.send(200, "text/html", countdownModeHtml);
   });
-  server.on("/start_countdown", HTTP_ANY, []() {
-    if (server.hasArg("duration")) {
-      countdownDuration = server.arg("duration");
-      Serial.println("[Countdown] Duration entered: " + countdownDuration);
-      server.send(200, "text/plain", "Countdown started for " + countdownDuration + " minutes.");
+  server.on("/start_countdown", HTTP_GET, []() {
+    if (server.hasArg("duration") && server.hasArg("mode")) {
+      int durationMin = server.arg("duration").toInt();
+      String mode = server.arg("mode");
+
+      if (durationMin <= 0 || durationMin > 180) {
+        server.send(400, "text/plain", "Invalid duration.");
+        return;
+      }
+
+      unsigned long durationMs = durationMin * 60UL * 1000UL;
+      countdownEndTime = millis() + durationMs;
+      countdownActive = true;
+
+      if (mode == "on") {
+        digitalWrite(MOTOR_PIN, HIGH);
+        motorExpectedState = LOW;
+        Serial.printf("[Countdown ON] Motor ON for %d min\n", durationMin);
+        server.send(200, "text/plain", "Motor ON for " + String(durationMin) + " min, then OFF.");
+      } else if (mode == "off") {
+        digitalWrite(MOTOR_PIN, LOW);
+        motorExpectedState = HIGH;
+        Serial.printf("[Countdown OFF] Motor OFF for %d min\n", durationMin);
+        server.send(200, "text/plain", "Motor OFF for " + String(durationMin) + " min, then ON.");
+      } else {
+        server.send(400, "text/plain", "Invalid mode.");
+      }
     } else {
-      server.send(400, "text/plain", "Missing duration parameter");
+      server.send(400, "text/plain", "Missing duration or mode.");
     }
   });
+
 
   // Timer mode
 
@@ -92,52 +118,52 @@ void start_webserver() {
   server.on("/search", HTTP_GET, []() {
     server.send(200, "text/html", searchModeHtml);
   });
-server.on("/search_submit", HTTP_GET, []() {
-  String gap = server.arg("gap");
-  String dryRun = server.arg("dryrun");
-  String days = "";
+  server.on("/search_submit", HTTP_GET, []() {
+    String gap = server.arg("gap");
+    String dryRun = server.arg("dryrun");
+    String days = "";
 
-  int totalArgs = server.args();
-  for (int i = 0; i < totalArgs; i++) {
-    if (server.argName(i) == "days") {
-      days += server.arg(i) + " ";
+    int totalArgs = server.args();
+    for (int i = 0; i < totalArgs; i++) {
+      if (server.argName(i) == "days") {
+        days += server.arg(i) + " ";
+      }
     }
-  }
 
-  Serial.println("[Search Mode]");
-  Serial.println("Testing Gap: " + gap);
-  Serial.println("Dry Run Time: " + dryRun);
-  Serial.println("Selected Days: " + days);
+    Serial.println("[Search Mode]");
+    Serial.println("Testing Gap: " + gap);
+    Serial.println("Dry Run Time: " + dryRun);
+    Serial.println("Selected Days: " + days);
 
-  server.send(200, "text/plain", "Search settings saved.");
-});
+    server.send(200, "text/plain", "Search settings saved.");
+  });
 
 
   // Twist mode
   server.on("/twist", HTTP_GET, []() {
     server.send(200, "text/html", twistModeHtml);
   });
-server.on("/twist_submit", HTTP_GET, []() {
-  String onDuration = server.arg("onDuration");
-  String offDuration = server.arg("offDuration");
-  String onTime = server.arg("onTime");
-  String offTime = server.arg("offTime");
-  String days = "";
+  server.on("/twist_submit", HTTP_GET, []() {
+    String onDuration = server.arg("onDuration");
+    String offDuration = server.arg("offDuration");
+    String onTime = server.arg("onTime");
+    String offTime = server.arg("offTime");
+    String days = "";
 
-  for (int i = 0; i < server.args(); i++) {
-    if (server.argName(i) == "days") {
-      days += server.arg(i) + " ";
+    for (int i = 0; i < server.args(); i++) {
+      if (server.argName(i) == "days") {
+        days += server.arg(i) + " ";
+      }
     }
-  }
 
-  Serial.println("[Twist Mode]");
-  Serial.println("On Duration: " + onDuration);
-  Serial.println("Off Duration: " + offDuration);
-  Serial.println("ON Time: " + onTime + " - OFF Time: " + offTime);
-  Serial.println("Days: " + days);
+    Serial.println("[Twist Mode]");
+    Serial.println("On Duration: " + onDuration);
+    Serial.println("Off Duration: " + offDuration);
+    Serial.println("ON Time: " + onTime + " - OFF Time: " + offTime);
+    Serial.println("Days: " + days);
 
-  server.send(200, "text/plain", "Settings received");
-});
+    server.send(200, "text/plain", "Settings received");
+  });
 
   // Error box
   server.on("/error_box", HTTP_GET, []() {
@@ -188,7 +214,26 @@ server.on("/twist_submit", HTTP_GET, []() {
   server.begin();
   Serial.println("HTTP server started");
 }
+void setMotor(bool state) {
+  motorState = true;
+  digitalWrite(MOTOR_PIN, state ? HIGH : LOW);
+}
+
+void handleCountdownLogic() {
+  if (countdownActive && millis() > countdownEndTime) {
+    setMotor(motorExpectedState);
+    Serial.println("[Countdown] Motor toggled after countdown finished.");
+    countdownActive = false;
+  }
+}
+
+
 
 void handleClient() {
   server.handleClient();
+  handleCountdownLogic(); // ✅ actually runs countdown toggling
 }
+
+
+
+

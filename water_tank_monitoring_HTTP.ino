@@ -3,6 +3,7 @@
 
 unsigned long lastUpdate = 0;
 
+
 void setup() {
     Serial.begin(115200);
     wifi_init();
@@ -13,6 +14,7 @@ void setup() {
 void loop() {
     handleClient();
 
+    // handleCountdownLogic();
     if (millis() - lastUpdate > 5000) {
         updateSimulatedWaterLevel();  // Update simulated water level
         lastUpdate = millis();
