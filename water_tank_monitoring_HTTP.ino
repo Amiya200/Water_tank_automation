@@ -1,9 +1,6 @@
 #include "web_server.h"
 #include "wifi_manager.h"
 
-unsigned long lastUpdate = 0;
-
-
 void setup() {
     Serial.begin(115200);
     wifi_init();

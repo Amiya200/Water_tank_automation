@@ -4,5 +4,8 @@
 // #include <ESP8266WebServer.h>
 void start_webserver();
 void handleClient();
-void updateSimulatedWaterLevel(); 
+void updateSimulatedWaterLevel();
+
 #endif // WEB_SERVER_H
+
+extern unsigned long lastUpdate;  // ✅ Declare once here

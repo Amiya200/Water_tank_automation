@@ -19,7 +19,7 @@ int simulatedWaterLevel = 70;
 unsigned long countdownEndTime = 0;
 bool countdownActive = false;
 bool motorExpectedState = false;  // true = ON, false = OFF
-
+unsigned long lastUpdate = 0; // ✅ Defined only here now
 // Global variables to hold user input from different modes
 String countdownDuration = "";
 String timerStartTime = "";
@@ -28,6 +28,8 @@ String searchQuery = "";
 String twistValue = "";
 String semiAutoOption = "";
 String errorMessage = "";
+
+
 
 bool motorState = false;  // false = OFF, true = ON
 void updateSimulatedWaterLevel() {
