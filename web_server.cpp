@@ -117,15 +117,27 @@ server.on("/search_submit", HTTP_GET, []() {
   server.on("/twist", HTTP_GET, []() {
     server.send(200, "text/html", twistModeHtml);
   });
-  server.on("/twist_submit", HTTP_ANY, []() {
-    if (server.hasArg("value")) {
-      twistValue = server.arg("value");
-      Serial.println("[Twist] Value: " + twistValue);
-      server.send(200, "text/plain", "Twist value received: " + twistValue);
-    } else {
-      server.send(400, "text/plain", "Missing twist value");
+server.on("/twist_submit", HTTP_GET, []() {
+  String onDuration = server.arg("onDuration");
+  String offDuration = server.arg("offDuration");
+  String onTime = server.arg("onTime");
+  String offTime = server.arg("offTime");
+  String days = "";
+
+  for (int i = 0; i < server.args(); i++) {
+    if (server.argName(i) == "days") {
+      days += server.arg(i) + " ";
     }
-  });
+  }
+
+  Serial.println("[Twist Mode]");
+  Serial.println("On Duration: " + onDuration);
+  Serial.println("Off Duration: " + offDuration);
+  Serial.println("ON Time: " + onTime + " - OFF Time: " + offTime);
+  Serial.println("Days: " + days);
+
+  server.send(200, "text/plain", "Settings received");
+});
 
   // Error box
   server.on("/error_box", HTTP_GET, []() {
