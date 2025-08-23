@@ -17,7 +17,7 @@ const char* timerModeHtml = R"rawliteral(
     }
     .form-container {
       margin: 30px auto;
-      max-width: 450px;
+      max-width: 500px;
       background: #111;
       padding: 25px;
       border-radius: 12px;
@@ -122,7 +122,7 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime1"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime1">
-        <div class="optional">(Optional)</div>
+        <div class="optional">(Optional - fill both or none)</div>
       </div>
 
       <div class="time-slot">
@@ -131,7 +131,7 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime2"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime2">
-        <div class="optional">(Optional)</div>
+        <div class="optional">(Optional - fill both or none)</div>
       </div>
 
       <div class="time-slot">
@@ -140,7 +140,25 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime3"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime3">
-        <div class="optional">(Optional)</div>
+        <div class="optional">(Optional - fill both or none)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 4</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime4"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime4">
+        <div class="optional">(Optional - fill both or none)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 5</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime5"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime5">
+        <div class="optional">(Optional - fill both or none)</div>
       </div>
 
       <button type="submit">Set Timer</button>
@@ -159,18 +177,28 @@ const char* timerModeHtml = R"rawliteral(
       const offTime2 = document.getElementById('offTime2').value;
       const onTime3 = document.getElementById('onTime3').value;
       const offTime3 = document.getElementById('offTime3').value;
+      const onTime4 = document.getElementById('onTime4').value;
+      const offTime4 = document.getElementById('offTime4').value;
+      const onTime5 = document.getElementById('onTime5').value;
+      const offTime5 = document.getElementById('offTime5').value;
       
       const loading = document.getElementById('loading');
       const result = document.getElementById('result');
 
-      console.log("Timer form submitted with:", {onTime1, offTime1, onTime2, offTime2, onTime3, offTime3});
+      console.log("Timer form submitted with 5 slots:", {
+        onTime1, offTime1, onTime2, offTime2, onTime3, offTime3,
+        onTime4, offTime4, onTime5, offTime5
+      });
 
       // Check if at least one complete time slot is filled
       const hasCompleteSlot1 = onTime1 && offTime1;
       const hasCompleteSlot2 = onTime2 && offTime2;
       const hasCompleteSlot3 = onTime3 && offTime3;
+      const hasCompleteSlot4 = onTime4 && offTime4;
+      const hasCompleteSlot5 = onTime5 && offTime5;
       
-      if (!hasCompleteSlot1 && !hasCompleteSlot2 && !hasCompleteSlot3) {
+      if (!hasCompleteSlot1 && !hasCompleteSlot2 && !hasCompleteSlot3 && 
+          !hasCompleteSlot4 && !hasCompleteSlot5) {
         result.className = 'result error';
         result.innerHTML = "Please fill at least one complete time slot (both ON and OFF times)";
         return;
@@ -181,6 +209,8 @@ const char* timerModeHtml = R"rawliteral(
       if ((onTime1 && !offTime1) || (!onTime1 && offTime1)) incompleteSlots.push(1);
       if ((onTime2 && !offTime2) || (!onTime2 && offTime2)) incompleteSlots.push(2);
       if ((onTime3 && !offTime3) || (!onTime3 && offTime3)) incompleteSlots.push(3);
+      if ((onTime4 && !offTime4) || (!onTime4 && offTime4)) incompleteSlots.push(4);
+      if ((onTime5 && !offTime5) || (!onTime5 && offTime5)) incompleteSlots.push(5);
       
       if (incompleteSlots.length > 0) {
         result.className = 'result error';
@@ -207,29 +237,29 @@ const char* timerModeHtml = R"rawliteral(
         queryParams.push('on3=' + encodeURIComponent(onTime3));
         queryParams.push('off3=' + encodeURIComponent(offTime3));
       }
+      if (onTime4 && offTime4) {
+        queryParams.push('on4=' + encodeURIComponent(onTime4));
+        queryParams.push('off4=' + encodeURIComponent(offTime4));
+      }
+      if (onTime5 && offTime5) {
+        queryParams.push('on5=' + encodeURIComponent(onTime5));
+        queryParams.push('off5=' + encodeURIComponent(offTime5));
+      }
 
       fetch('/timer/set?' + queryParams.join('&'))
         .then(function(response) {
           loading.style.display = 'none';
           if (response.ok) {
-            result.className = 'result success';
-            let successMessage = "Timer configuration saved successfully!<br><br>";
-            
-            if (onTime1 && offTime1) {
-              successMessage += "Slot 1: ON at <b>" + onTime1 + "</b>, OFF at <b>" + offTime1 + "</b><br>";
-            }
-            if (onTime2 && offTime2) {
-              successMessage += "Slot 2: ON at <b>" + onTime2 + "</b>, OFF at <b>" + offTime2 + "</b><br>";
-            }
-            if (onTime3 && offTime3) {
-              successMessage += "Slot 3: ON at <b>" + onTime3 + "</b>, OFF at <b>" + offTime3 + "</b><br>";
-            }
-            
-            result.innerHTML = successMessage;
+            return response.text();
           } else {
             result.className = 'result error';
-            result.innerHTML = "Failed to save timer configuration. Please try again.";
+            result.innerHTML = "Failed to save timer configuration. Server returned: " + response.status;
+            throw new Error('Server returned ' + response.status);
           }
+        })
+        .then(function(responseText) {
+          result.className = 'result success';
+          result.innerHTML = "✅ Timer configuration saved successfully!<br><br>" + responseText;
         })
         .catch(function(error) {
           loading.style.display = 'none';

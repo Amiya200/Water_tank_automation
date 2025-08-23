@@ -28,6 +28,10 @@ String timerStartTime2 = "";
 String timerStopTime2 = "";
 String timerStartTime3 = "";
 String timerStopTime3 = "";
+String timerStartTime4 = "";
+String timerStopTime4 = "";
+String timerStartTime5 = "";
+String timerStopTime5 = "";
 String searchQuery = "";
 String twistValue = "";
 String semiAutoOption = "";
@@ -113,14 +117,31 @@ void start_webserver() {
     String responseMessage = "Timer settings received:\n";
     bool hasValidSlot = false;
 
-    for (int i = 1; i <= 3; i++) {
+    for (int i = 1; i <= 5; i++) {
       String onTime = server.arg("on" + String(i));
       String offTime = server.arg("off" + String(i));
 
       if (onTime.length() > 0 && offTime.length() > 0) {
         hasValidSlot = true;
         responseMessage += "Slot " + String(i) + ": ON at " + onTime + ", OFF at " + offTime + "\n";
-        // Here you can add logic to handle the timer settings
+        
+        // Store the timer settings in global variables
+        if (i == 1) {
+          timerStartTime1 = onTime;
+          timerStopTime1 = offTime;
+        } else if (i == 2) {
+          timerStartTime2 = onTime;
+          timerStopTime2 = offTime;
+        } else if (i == 3) {
+          timerStartTime3 = onTime;
+          timerStopTime3 = offTime;
+        } else if (i == 4) {
+          timerStartTime4 = onTime;
+          timerStopTime4 = offTime;
+        } else if (i == 5) {
+          timerStartTime5 = onTime;
+          timerStopTime5 = offTime;
+        }
       }
     }
 
