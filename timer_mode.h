@@ -10,57 +10,103 @@ const char* timerModeHtml = R"rawliteral(
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #eaecee ;
+      background-color: #eaecee;
       color: white;
       text-align: center;
       padding: 20px;
     }
     .form-container {
       margin: 30px auto;
-      max-width: 400px;
+      max-width: 450px;
       background: #111;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px #0dcaf0;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px #0dcaf0;
     }
     h1 {
       color: #0dcaf0;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
+      font-size: 28px;
+    }
+    .time-slot {
+      margin: 15px 0;
+      padding: 15px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      border-left: 4px solid #0dcaf0;
+    }
+    .time-slot h3 {
+      color: #0dcaf0;
+      margin: 0 0 12px 0;
+      font-size: 18px;
     }
     label {
-      font-size: 18px;
+      font-size: 16px;
+      display: block;
+      margin-bottom: 5px;
+      color: #ccc;
     }
     input[type="time"] {
       width: 45%;
-      padding: 10px;
-      margin: 10px;
+      padding: 12px;
+      margin: 8px;
       font-size: 16px;
-      border-radius: 5px;
-      border: none;
+      border-radius: 6px;
+      border: 2px solid #333;
       background: #222;
       color: white;
+      transition: border-color 0.3s ease;
+    }
+    input[type="time"]:focus {
+      border-color: #0dcaf0;
+      outline: none;
     }
     button {
-      padding: 10px 20px;
-      background-color: #0dcaf0;
-      color: black;
+      padding: 12px 25px;
+      background: linear-gradient(135deg, #0dcaf0, #0099cc);
+      color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 8px;
       font-weight: bold;
       font-size: 16px;
       cursor: pointer;
-      margin-top: 10px;
+      margin-top: 20px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 4px 8px rgba(13, 202, 240, 0.3);
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(13, 202, 240, 0.4);
+    }
+    button:active {
+      transform: translateY(0);
     }
     .result {
       margin-top: 20px;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: bold;
+      padding: 15px;
+      border-radius: 8px;
+      background: #1a1a1a;
     }
-    .success { color: #28a745; }
-    .error { color: #dc3545; }
+    .success { 
+      color: #28a745;
+      border: 2px solid #28a745;
+    }
+    .error { 
+      color: #dc3545;
+      border: 2px solid #dc3545;
+    }
     .loading {
       font-size: 14px;
+      color: #0dcaf0;
+      margin-top: 10px;
+      font-style: italic;
+    }
+    .optional {
+      font-size: 12px;
       color: #888;
+      font-style: italic;
       margin-top: 5px;
     }
   </style>
@@ -70,51 +116,126 @@ const char* timerModeHtml = R"rawliteral(
 
   <div class="form-container">
     <form id="timerForm">
-      <label>ON Time:</label><br>
-      <input type="time" id="onTime" required><br>
-      <label>OFF Time:</label><br>
-      <input type="time" id="offTime" required><br>
+      <div class="time-slot">
+        <h3>Time Slot 1</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime1"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime1">
+        <div class="optional">(Optional)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 2</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime2"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime2">
+        <div class="optional">(Optional)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 3</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime3"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime3">
+        <div class="optional">(Optional)</div>
+      </div>
+
       <button type="submit">Set Timer</button>
     </form>
-    <div class="loading" id="loading" style="display: none;">Sending request...</div>
+    <div class="loading" id="loading" style="display: none;">Sending timer configuration...</div>
     <div id="result" class="result"></div>
   </div>
 
   <script>
     document.getElementById('timerForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const onTime = document.getElementById('onTime').value;
-      const offTime = document.getElementById('offTime').value;
+      
+      const onTime1 = document.getElementById('onTime1').value;
+      const offTime1 = document.getElementById('offTime1').value;
+      const onTime2 = document.getElementById('onTime2').value;
+      const offTime2 = document.getElementById('offTime2').value;
+      const onTime3 = document.getElementById('onTime3').value;
+      const offTime3 = document.getElementById('offTime3').value;
+      
       const loading = document.getElementById('loading');
       const result = document.getElementById('result');
 
-      console.log("Timer form submitted with:", onTime, offTime);
+      console.log("Timer form submitted with:", {onTime1, offTime1, onTime2, offTime2, onTime3, offTime3});
 
-      if (!onTime || !offTime) {
+      // Check if at least one complete time slot is filled
+      const hasCompleteSlot1 = onTime1 && offTime1;
+      const hasCompleteSlot2 = onTime2 && offTime2;
+      const hasCompleteSlot3 = onTime3 && offTime3;
+      
+      if (!hasCompleteSlot1 && !hasCompleteSlot2 && !hasCompleteSlot3) {
         result.className = 'result error';
-        result.innerHTML = "❌ Please fill both ON and OFF times.";
+        result.innerHTML = "Please fill at least one complete time slot (both ON and OFF times)";
+        return;
+      }
+
+      // Check for incomplete slots (only one time filled)
+      const incompleteSlots = [];
+      if ((onTime1 && !offTime1) || (!onTime1 && offTime1)) incompleteSlots.push(1);
+      if ((onTime2 && !offTime2) || (!onTime2 && offTime2)) incompleteSlots.push(2);
+      if ((onTime3 && !offTime3) || (!onTime3 && offTime3)) incompleteSlots.push(3);
+      
+      if (incompleteSlots.length > 0) {
+        result.className = 'result error';
+        result.innerHTML = "Incomplete time slot" + (incompleteSlots.length > 1 ? 's' : '') + 
+                           " " + incompleteSlots.join(', ') + 
+                           ": Please provide both ON and OFF times or leave both empty";
         return;
       }
 
       loading.style.display = 'block';
       result.innerHTML = '';
 
-      fetch('/timer/set?on=' + onTime + '&off=' + offTime)
+      // Build query parameters only for filled slots
+      let queryParams = [];
+      if (onTime1 && offTime1) {
+        queryParams.push('on1=' + encodeURIComponent(onTime1));
+        queryParams.push('off1=' + encodeURIComponent(offTime1));
+      }
+      if (onTime2 && offTime2) {
+        queryParams.push('on2=' + encodeURIComponent(onTime2));
+        queryParams.push('off2=' + encodeURIComponent(offTime2));
+      }
+      if (onTime3 && offTime3) {
+        queryParams.push('on3=' + encodeURIComponent(onTime3));
+        queryParams.push('off3=' + encodeURIComponent(offTime3));
+      }
+
+      fetch('/timer/set?' + queryParams.join('&'))
         .then(function(response) {
           loading.style.display = 'none';
           if (response.ok) {
             result.className = 'result success';
-            result.innerHTML =
-              "✅ <b>Timer Set Successfully</b><br>ON at <b>" + onTime + "</b><br>OFF at <b>" + offTime + "</b>";
+            let successMessage = "Timer configuration saved successfully!<br><br>";
+            
+            if (onTime1 && offTime1) {
+              successMessage += "Slot 1: ON at <b>" + onTime1 + "</b>, OFF at <b>" + offTime1 + "</b><br>";
+            }
+            if (onTime2 && offTime2) {
+              successMessage += "Slot 2: ON at <b>" + onTime2 + "</b>, OFF at <b>" + offTime2 + "</b><br>";
+            }
+            if (onTime3 && offTime3) {
+              successMessage += "Slot 3: ON at <b>" + onTime3 + "</b>, OFF at <b>" + offTime3 + "</b><br>";
+            }
+            
+            result.innerHTML = successMessage;
           } else {
             result.className = 'result error';
-            result.innerHTML = "❌ Failed to set timer.";
+            result.innerHTML = "Failed to save timer configuration. Please try again.";
           }
         })
-        .catch(function() {
+        .catch(function(error) {
           loading.style.display = 'none';
           result.className = 'result error';
-          result.innerHTML = "❌ Failed to connect to server.";
+          result.innerHTML = "Connection error: Unable to reach the server. Please check your connection and try again.";
+          console.error("Fetch error:", error);
         });
     });
   </script>

@@ -1,4 +1,3 @@
-
 #include <WebServer.h>
 #include <Arduino.h>
 #include "web_server.h"
@@ -20,25 +19,31 @@ unsigned long countdownEndTime = 0;
 bool countdownActive = false;
 bool motorExpectedState = false;  // true = ON, false = OFF
 unsigned long lastUpdate = 0; // ✅ Defined only here now
+
 // Global variables to hold user input from different modes
 String countdownDuration = "";
-String timerStartTime = "";
-String timerStopTime = "";
+String timerStartTime1 = "";
+String timerStopTime1 = "";
+String timerStartTime2 = "";
+String timerStopTime2 = "";
+String timerStartTime3 = "";
+String timerStopTime3 = "";
 String searchQuery = "";
 String twistValue = "";
 String semiAutoOption = "";
 String errorMessage = "";
 
-
-
 bool motorState = false;  // false = OFF, true = ON
+
 void updateSimulatedWaterLevel() {
   simulatedWaterLevel = random(30, 100);  // or analogRead mapping
 }
+
 void setMotor(bool state) {
-  motorState = true;
+  motorState = state;
   digitalWrite(MOTOR_PIN, state ? HIGH : LOW);
 }
+
 void start_webserver() {
   pinMode(MOTOR_PIN, OUTPUT);
   digitalWrite(MOTOR_PIN, LOW);
@@ -99,26 +104,33 @@ void start_webserver() {
     }
   });
 
-
   // Timer mode
-
   server.on("/timer", HTTP_GET, []() {
     server.send(200, "text/html", timerModeHtml);
   });
 
   server.on("/timer/set", HTTP_GET, []() {
-    if (server.hasArg("on") && server.hasArg("off")) {
-      timerStartTime = server.arg("on");
-      timerStopTime = server.arg("off");
-      Serial.println("[Timer] ON at: " + timerStartTime + ", OFF at: " + timerStopTime);
-      server.send(200, "text/plain", "OK");
+    String responseMessage = "Timer settings received:\n";
+    bool hasValidSlot = false;
+
+    for (int i = 1; i <= 3; i++) {
+      String onTime = server.arg("on" + String(i));
+      String offTime = server.arg("off" + String(i));
+
+      if (onTime.length() > 0 && offTime.length() > 0) {
+        hasValidSlot = true;
+        responseMessage += "Slot " + String(i) + ": ON at " + onTime + ", OFF at " + offTime + "\n";
+        // Here you can add logic to handle the timer settings
+      }
+    }
+
+    if (hasValidSlot) {
+      Serial.println(responseMessage);
+      server.send(200, "text/plain", "OK\n" + responseMessage);
     } else {
       server.send(400, "text/plain", "Missing parameters");
     }
   });
-
-
-
 
   // Search mode
   server.on("/search", HTTP_GET, []() {
@@ -143,7 +155,6 @@ void start_webserver() {
 
     server.send(200, "text/plain", "Search settings saved.");
   });
-
 
   // Twist mode
   server.on("/twist", HTTP_GET, []() {
@@ -208,9 +219,6 @@ void start_webserver() {
     server.send(200, "text/plain", motorState ? "ON" : "OFF");
   });
 
-
-
-
   // Water level status
   server.on("/status", HTTP_GET, []() {
     updateSimulatedWaterLevel();
@@ -221,7 +229,6 @@ void start_webserver() {
   Serial.println("HTTP server started");
 }
 
-
 void handleCountdownLogic() {
   if (countdownActive && millis() > countdownEndTime) {
     setMotor(motorExpectedState);
@@ -229,8 +236,6 @@ void handleCountdownLogic() {
     countdownActive = false;
   }
 }
-
-
 
 void handleClient() {
   server.handleClient();
