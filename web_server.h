@@ -8,4 +8,4 @@ void updateSimulatedWaterLevel();
 
 #endif // WEB_SERVER_H
 
-extern unsigned long lastUpdate;  // ✅ Declare once here
+extern unsigned long lastUpdate;  // Declare once here

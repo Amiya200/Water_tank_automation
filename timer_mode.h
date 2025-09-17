@@ -259,7 +259,7 @@ const char* timerModeHtml = R"rawliteral(
         })
         .then(function(responseText) {
           result.className = 'result success';
-          result.innerHTML = "✅ Timer configuration saved successfully!<br><br>" + responseText;
+          result.innerHTML = "Timer configuration saved successfully!<br><br>" + responseText;
         })
         .catch(function(error) {
           loading.style.display = 'none';

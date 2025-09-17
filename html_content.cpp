@@ -161,7 +161,7 @@ const char* htmlContent = R"rawliteral(
       fetch(endpoint)
         .then(res => res.text())
         .then(msg => {
-          document.getElementById("motorMsg").innerText = "✅ " + msg;
+          document.getElementById("motorMsg").innerText = msg;
           motorIsOn = !motorIsOn;
           document.getElementById("motorToggleBtn").innerText = motorIsOn ? "Turn OFF" : "Turn ON";
         });

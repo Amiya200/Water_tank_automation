@@ -151,10 +151,10 @@ const char* searchModeHtml = R"rawliteral(
       const result = await response.text();
 
       // Show what was submitted
-      let summary = `✅ Settings saved\n`;
-      summary += `• Testing Gap: ${dataSummary.gap || '-'}\n`;
-      summary += `• Dry Run Time: ${dataSummary.dryrun || '-'}\n`;
-      summary += `• Days: ${(dataSummary.days || []).join(', ') || '-'}`;
+      let summary = `Settings saved\n`;
+      summary += `Testing Gap: ${dataSummary.gap || '-'}\n`;
+      summary += `Dry Run Time: ${dataSummary.dryrun || '-'}\n`;
+      summary += `Days: ${(dataSummary.days || []).join(', ') || '-'}`;
 
       document.getElementById('message').textContent = summary;
 
