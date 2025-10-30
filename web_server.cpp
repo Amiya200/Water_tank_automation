@@ -1,8 +1,16 @@
-#include <WebServer.h>
+// web_server.cpp  (ESP-01 / ESP8266 version)
 #include <Arduino.h>
+
+#if defined(ESP8266)
+  #include <ESP8266WebServer.h>
+  static ESP8266WebServer server(80);
+#else
+  #include <WebServer.h>
+  static WebServer server(80);
+#endif
+
 #include "web_server.h"
 #include "html_content.h"
-
 #include "manual_mode.h"
 #include "countdown_mode.h"
 #include "timer_mode.h"
@@ -11,16 +19,19 @@
 #include "error_box.h"
 #include "semi_auto_mode.h"
 
-WebServer server(80);
+// ====== ESP-01 HAS ONLY FEW PINS ======
+// GPIO2 is the safest for relay on ESP-01
+#ifndef MOTOR_PIN
+  #define MOTOR_PIN 2
+#endif
 
-#define MOTOR_PIN 5
 int simulatedWaterLevel = 70;
 unsigned long countdownEndTime = 0;
 bool countdownActive = false;
-bool motorExpectedState = false;  // true = ON, false = OFF
-unsigned long lastUpdate = 0; // ✅ Defined only here now
+bool motorExpectedState = false;
+unsigned long lastUpdate = 0;
 
-// Global variables to hold user input from different modes
+// timer / mode globals
 String countdownDuration = "";
 String timerStartTime1 = "";
 String timerStopTime1 = "";
@@ -36,43 +47,40 @@ String searchQuery = "";
 String twistValue = "";
 String semiAutoOption = "";
 String errorMessage = "";
+bool motorState = false;   // OFF
 
-bool motorState = false;  // false = OFF, true = ON
-
-void updateSimulatedWaterLevel() {
-  simulatedWaterLevel = random(30, 100);  // or analogRead mapping
-}
-
-void setMotor(bool state) {
+static void setMotor(bool state) {
   motorState = state;
   digitalWrite(MOTOR_PIN, state ? HIGH : LOW);
+}
+
+void updateSimulatedWaterLevel() {
+  simulatedWaterLevel = random(30, 100);
 }
 
 void start_webserver() {
   pinMode(MOTOR_PIN, OUTPUT);
   digitalWrite(MOTOR_PIN, LOW);
 
+  // ===== ROOT =====
   server.on("/", HTTP_GET, []() {
     server.send(200, "text/html", htmlContent);
   });
 
-  // Manual mode
+  // ===== MANUAL =====
   server.on("/manual", HTTP_GET, []() {
     server.send(200, "text/html", manualModeHtml);
   });
   server.on("/manual/on", HTTP_GET, []() {
     setMotor(true);
-    Serial.println("[Manual] Motor turned ON");
     server.send(200, "text/plain", "Motor turned ON");
   });
-
   server.on("/manual/off", HTTP_GET, []() {
     setMotor(false);
-    Serial.println("[Manual] Motor turned OFF");
     server.send(200, "text/plain", "Motor turned OFF");
   });
 
-  // Countdown mode
+  // ===== COUNTDOWN =====
   server.on("/countdown", HTTP_GET, []() {
     server.send(200, "text/html", countdownModeHtml);
   });
@@ -82,7 +90,7 @@ void start_webserver() {
       String mode = server.arg("mode");
 
       if (durationMin <= 0 || durationMin > 180) {
-        server.send(400, "text/plain", "Invalid duration.");
+        server.send(400, "text/plain", "Invalid duration");
         return;
       }
 
@@ -91,28 +99,23 @@ void start_webserver() {
       countdownActive = true;
 
       if (mode == "on") {
-        digitalWrite(MOTOR_PIN, HIGH);
-        motorExpectedState = LOW;
-        Serial.printf("[Countdown ON] Motor ON for %d min\n", durationMin);
+        setMotor(true);
+        motorExpectedState = false; // turn OFF later
         server.send(200, "text/plain", "Motor ON for " + String(durationMin) + " min, then OFF.");
-      } else if (mode == "off") {
-        digitalWrite(MOTOR_PIN, LOW);
-        motorExpectedState = HIGH;
-        Serial.printf("[Countdown OFF] Motor OFF for %d min\n", durationMin);
-        server.send(200, "text/plain", "Motor OFF for " + String(durationMin) + " min, then ON.");
       } else {
-        server.send(400, "text/plain", "Invalid mode.");
+        setMotor(false);
+        motorExpectedState = true;  // turn ON later
+        server.send(200, "text/plain", "Motor OFF for " + String(durationMin) + " min, then ON.");
       }
     } else {
-      server.send(400, "text/plain", "Missing duration or mode.");
+      server.send(400, "text/plain", "Missing duration or mode");
     }
   });
 
-  // Timer mode
+  // ===== TIMER =====
   server.on("/timer", HTTP_GET, []() {
     server.send(200, "text/html", timerModeHtml);
   });
-
   server.on("/timer/set", HTTP_GET, []() {
     String responseMessage = "Timer settings received:\n";
     bool hasValidSlot = false;
@@ -120,40 +123,26 @@ void start_webserver() {
     for (int i = 1; i <= 5; i++) {
       String onTime = server.arg("on" + String(i));
       String offTime = server.arg("off" + String(i));
-
       if (onTime.length() > 0 && offTime.length() > 0) {
         hasValidSlot = true;
         responseMessage += "Slot " + String(i) + ": ON at " + onTime + ", OFF at " + offTime + "\n";
-        
-        // Store the timer settings in global variables
-        if (i == 1) {
-          timerStartTime1 = onTime;
-          timerStopTime1 = offTime;
-        } else if (i == 2) {
-          timerStartTime2 = onTime;
-          timerStopTime2 = offTime;
-        } else if (i == 3) {
-          timerStartTime3 = onTime;
-          timerStopTime3 = offTime;
-        } else if (i == 4) {
-          timerStartTime4 = onTime;
-          timerStopTime4 = offTime;
-        } else if (i == 5) {
-          timerStartTime5 = onTime;
-          timerStopTime5 = offTime;
-        }
+
+        if (i == 1) { timerStartTime1 = onTime; timerStopTime1 = offTime; }
+        else if (i == 2) { timerStartTime2 = onTime; timerStopTime2 = offTime; }
+        else if (i == 3) { timerStartTime3 = onTime; timerStopTime3 = offTime; }
+        else if (i == 4) { timerStartTime4 = onTime; timerStopTime4 = offTime; }
+        else if (i == 5) { timerStartTime5 = onTime; timerStopTime5 = offTime; }
       }
     }
 
     if (hasValidSlot) {
-      Serial.println(responseMessage);
       server.send(200, "text/plain", "OK\n" + responseMessage);
     } else {
       server.send(400, "text/plain", "Missing parameters");
     }
   });
 
-  // Search mode
+  // ===== SEARCH =====
   server.on("/search", HTTP_GET, []() {
     server.send(200, "text/html", searchModeHtml);
   });
@@ -162,103 +151,71 @@ void start_webserver() {
     String dryRun = server.arg("dryrun");
     String days = "";
 
-    int totalArgs = server.args();
-    for (int i = 0; i < totalArgs; i++) {
-      if (server.argName(i) == "days") {
-        days += server.arg(i) + " ";
-      }
-    }
-
-    Serial.println("[Search Mode]");
-    Serial.println("Testing Gap: " + gap);
-    Serial.println("Dry Run Time: " + dryRun);
-    Serial.println("Selected Days: " + days);
-
-    server.send(200, "text/plain", "Search settings saved.");
-  });
-
-  // Twist mode
-  server.on("/twist", HTTP_GET, []() {
-    server.send(200, "text/html", twistModeHtml);
-  });
-  server.on("/twist_submit", HTTP_GET, []() {
-    String onDuration = server.arg("onDuration");
-    String offDuration = server.arg("offDuration");
-    String onTime = server.arg("onTime");
-    String offTime = server.arg("offTime");
-    String days = "";
-
     for (int i = 0; i < server.args(); i++) {
       if (server.argName(i) == "days") {
         days += server.arg(i) + " ";
       }
     }
 
-    Serial.println("[Twist Mode]");
-    Serial.println("On Duration: " + onDuration);
-    Serial.println("Off Duration: " + offDuration);
-    Serial.println("ON Time: " + onTime + " - OFF Time: " + offTime);
-    Serial.println("Days: " + days);
+    // just echo
+    server.send(200, "text/plain", "Search settings saved.");
+  });
 
+  // ===== TWIST =====
+  server.on("/twist", HTTP_GET, []() {
+    server.send(200, "text/html", twistModeHtml);
+  });
+  server.on("/twist_submit", HTTP_GET, []() {
+    // just echo your data like before
     server.send(200, "text/plain", "Settings received");
   });
 
-  // Error box
+  // ===== ERROR BOX =====
   server.on("/error_box", HTTP_GET, []() {
     server.send(200, "text/html", errorBoxHtml);
   });
   server.on("/error_submit", HTTP_ANY, []() {
     if (server.hasArg("message")) {
       errorMessage = server.arg("message");
-      Serial.println("[Error Box] Message: " + errorMessage);
       server.send(200, "text/plain", "Error message received");
     } else {
       server.send(400, "text/plain", "Missing error message");
     }
   });
 
-  // Semi-auto mode
+  // ===== SEMI AUTO =====
   server.on("/semi", HTTP_GET, []() {
     server.send(200, "text/html", semiAutoModeHtml);
   });
-
   server.on("/semi_toggle", HTTP_GET, []() {
-    motorState = !motorState;
-
-    if (motorState) {
-      digitalWrite(MOTOR_PIN, HIGH);
-      Serial.println("[Semi-Auto] Motor STARTED");
-      server.send(200, "text/plain", "ON");
-    } else {
-      digitalWrite(MOTOR_PIN, LOW);
-      Serial.println("[Semi-Auto] Motor STOPPED");
-      server.send(200, "text/plain", "OFF");
-    }
+    setMotor(!motorState);
+    server.send(200, "text/plain", motorState ? "ON" : "OFF");
   });
 
+  // ===== MOTOR STATUS =====
   server.on("/motor_status", HTTP_GET, []() {
     server.send(200, "text/plain", motorState ? "ON" : "OFF");
   });
 
-  // Water level status
+  // ===== WATER LEVEL JSON =====
   server.on("/status", HTTP_GET, []() {
     updateSimulatedWaterLevel();
-    server.send(200, "application/json", "{\"level\": " + String(simulatedWaterLevel) + "}");
+    server.send(200, "application/json",
+      "{\"level\": " + String(simulatedWaterLevel) + "}");
   });
 
   server.begin();
-  Serial.println("HTTP server started");
+  Serial.println("HTTP server started (ESP-01)");
 }
 
-void handleCountdownLogic() {
+static void handleCountdownLogic() {
   if (countdownActive && millis() > countdownEndTime) {
     setMotor(motorExpectedState);
-    Serial.println("[Countdown] Motor toggled after countdown finished.");
     countdownActive = false;
   }
 }
 
 void handleClient() {
   server.handleClient();
-  handleCountdownLogic();  // ✅ actually runs countdown toggling
+  handleCountdownLogic();
 }
