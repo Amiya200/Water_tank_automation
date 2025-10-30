@@ -102,7 +102,7 @@ const char* countdownModeHtml = R"rawliteral(
     <p id="status">Motor Status: <span id="motorText">Loading...</span></p>
     <p id="message"></p>
 
-    <a href="/"><button class="button back-btn">⬅ Back</button></a>
+    <a href="/"><button class="button back-btn">Back</button></a>
   </div>
 
   <script>
@@ -138,7 +138,11 @@ const char* countdownModeHtml = R"rawliteral(
       const res = await fetch(`/start_countdown?duration=${duration}&mode=${mode}`);
       const msg = await res.text();
 
+<<<<<<< HEAD
       document.getElementById("message").textContent = "ok" + msg;
+=======
+      document.getElementById("message").textContent = msg;
+>>>>>>> b24165c607cf9fcc22a9d4bbc0fb7f02b6d9112c
       document.getElementById("countdownForm").reset();
 
       motorState = !motorState; // expected future state
@@ -147,7 +151,11 @@ const char* countdownModeHtml = R"rawliteral(
       // Countdown: wait and fetch status again
       setTimeout(() => {
         getMotorStatus();
+<<<<<<< HEAD
         document.getElementById("message").textContent = ` Countdown finished — Motor is now ${motorState ? "ON" : "OFF"}`;
+=======
+        document.getElementById("message").textContent = `Countdown finished — Motor is now ${motorState ? "ON" : "OFF"}`;
+>>>>>>> b24165c607cf9fcc22a9d4bbc0fb7f02b6d9112c
       }, duration * 60000); // convert minutes to milliseconds
     }
 

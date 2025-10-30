@@ -54,7 +54,7 @@ const char* manualModeHtml = R"rawliteral(
 
   <p id="message"></p>
 
-  <a href="/"><button class="button back-button">⬅ Back</button></a>
+  <a href="/"><button class="button back-button"> Back</button></a>
 
   <script>
     async function updateMotorStatus() {
@@ -71,7 +71,7 @@ const char* manualModeHtml = R"rawliteral(
       const endpoint = turnOn ? '/manual/on' : '/manual/off';
       const res = await fetch(endpoint);
       const result = await res.text();
-      document.getElementById("message").textContent = "✅ " + result;
+      document.getElementById("message").textContent =  result;
       updateMotorStatus();
     }
 

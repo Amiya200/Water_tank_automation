@@ -156,7 +156,11 @@ const char* twistModeHtml = R"rawliteral(
       const result = await res.text();
 
       // Show what was submitted
+<<<<<<< HEAD
       let summary = ` Twist Settings Saved\n`;
+=======
+      let summary = `Twist Settings Saved\n`;
+>>>>>>> b24165c607cf9fcc22a9d4bbc0fb7f02b6d9112c
       summary += `• On Duration: ${dataSummary.onDuration || '-'}\n`;
       summary += `• Off Duration: ${dataSummary.offDuration || '-'}\n`;
       summary += `• Time: ${dataSummary.onTime || '-'} - ${dataSummary.offTime || '-'}\n`;
