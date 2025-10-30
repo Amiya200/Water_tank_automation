@@ -1,55 +1,64 @@
-/*
 #include <ESP8266WiFi.h>
 #include "wifi_manager.h"
-*/
 
-// /*
+// ===== Access Point Credentials =====
+const char* AP_SSID = "ESP8266_Water_Tank";
+const char* AP_PASS = "123456789";
 
-// #include <WiFi.h>
-#include <ESP8266WiFi.h>
-#include "wifi_manager.h"
-// */
+// ===== Optional Static IP for AP =====
+IPAddress apIP(192, 168, 4, 1);
+IPAddress netMsk(255, 255, 255, 0);
 
+// ===== Function Prototypes =====
+void wifi_init();
+void wifi_loop();
 
-const char* ap_ssid = "ESP8266_Water_Tank"; // SSID for the Access Point
-const char* ap_password = "123456789"; // Password for the Access Point
+// ===== Initialization =====
 void wifi_init() {
-    Serial.println("Setting up Access Point...");
-    // Set up the Access Point
-    WiFi.softAP(ap_ssid, ap_password);
-    Serial.print("Access Point \"");
-    Serial.print(ap_ssid);
-    Serial.println("\" started");
-    // Print the IP address of the Access Point
-    IPAddress IP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(IP);
+  Serial.println("\n[WiFi] Setting up Access Point...");
+
+  // Ensure clean start
+  WiFi.disconnect(true);
+  delay(500);
+  WiFi.mode(WIFI_AP);
+  delay(200);
+
+  // Set static IP for AP mode (helps stability)
+  WiFi.softAPConfig(apIP, apIP, netMsk);
+
+  // Start AP
+  bool result = WiFi.softAP(AP_SSID, AP_PASS, 1, false, 4); // channel=1, open=false, max clients=4
+  if (result) {
+    Serial.printf("[WiFi] AP started: %s\n", AP_SSID);
+  } else {
+    Serial.println("[WiFi] Failed to start AP!");
+  }
+
+  // Print AP IP
+  Serial.print("[WiFi] AP IP address: ");
+  Serial.println(WiFi.softAPIP());
+
+  // Reduce beacon and background scan intervals for stability
+  wifi_set_sleep_type(LIGHT_SLEEP_T);
 }
 
+// ===== Runtime Loop (call from main loop()) =====
+void wifi_loop() {
+  static unsigned long lastCheck = 0;
+  unsigned long now = millis();
 
-// const char* ssid = "YOUR_SSID"; // Replace with your Wi-Fi SSID
-// const char* password = "YOUR_PASSWORD"; // Replace with your Wi-Fi password
-//    void wifi_init() {
-//        Serial.println("Connecting to Wi-Fi...");
-       
-//        // Set static IP address
-//        IPAddress local_IP(192, 168, 1, 100); // Set your desired static IP
-//        IPAddress gateway(192, 168, 1, 1); // Set your gateway (usually your router's IP)
-//        IPAddress subnet(255, 255, 255, 0); // Set your subnet mask
+  if (now - lastCheck > 10000) { // every 10 seconds
+    lastCheck = now;
 
-//        // Start Wi-Fi with static IP
-//        if (!WiFi.config(local_IP, gateway, subnet)) {
-//            Serial.println("STA Failed to configure");
-//        }
-       
-//        WiFi.begin(ssid, password);
-       
-//        while (WiFi.status() != WL_CONNECTED) {
-//            delay(500);
-//            Serial.print(".");
-//        }
-//        Serial.println(" connected!");
-//        Serial.print("IP address: ");
-//        Serial.println(WiFi.localIP());
-//    }
-   
+    // Auto-heal: if Wi-Fi AP becomes unresponsive, restart
+    if (WiFi.softAPgetStationNum() == 0 && WiFi.status() != WL_CONNECTED) {
+      Serial.println("[WiFi] No clients connected. Reinitializing AP...");
+      WiFi.softAPdisconnect(true);
+      delay(500);
+      WiFi.softAP(AP_SSID, AP_PASS);
+      Serial.println("[WiFi] AP restarted.");
+    }
+  }
+
+  yield(); // prevent watchdog resets
+}

@@ -14,19 +14,20 @@ const char* timerModeHtml = R"rawliteral(
       color: white;
       text-align: center;
       padding: 20px;
-    }
-    .form-container {
-      margin: 30px auto;
-      max-width: 500px;
-      background: #111;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 0 15px #0dcaf0;
+      margin: 0;
     }
     h1 {
       color: #0dcaf0;
       margin-bottom: 25px;
       font-size: 28px;
+    }
+    .form-container {
+      margin: 0 auto 30px;
+      max-width: 500px;
+      background: #111;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px #0dcaf0;
     }
     .time-slot {
       margin: 15px 0;
@@ -100,11 +101,10 @@ const char* timerModeHtml = R"rawliteral(
       margin-top: 10px;
       font-style: italic;
     }
-    .optional {
-      font-size: 12px;
-      color: #888;
-      font-style: italic;
-      margin-top: 5px;
+    .back-bottom {
+      background: #222;
+      margin-top: 18px;
+      border: 1px solid #0dcaf0;
     }
   </style>
 </head>
@@ -119,7 +119,7 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime1"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime1">
-        <div class="optional">(Optional - fill both or none)</div>
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
       </div>
 
       <div class="time-slot">
@@ -128,7 +128,7 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime2"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime2">
-        <div class="optional">(Optional - fill both or none)</div>
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
       </div>
 
       <div class="time-slot">
@@ -137,7 +137,7 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime3"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime3">
-        <div class="optional">(Optional - fill both or none)</div>
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
       </div>
 
       <div class="time-slot">
@@ -146,7 +146,7 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime4"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime4">
-        <div class="optional">(Optional - fill both or none)</div>
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
       </div>
 
       <div class="time-slot">
@@ -155,13 +155,16 @@ const char* timerModeHtml = R"rawliteral(
         <input type="time" id="onTime5"><br>
         <label>OFF Time:</label>
         <input type="time" id="offTime5">
-        <div class="optional">(Optional - fill both or none)</div>
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
       </div>
 
       <button type="submit">Set Timer</button>
     </form>
     <div class="loading" id="loading" style="display: none;">Sending timer configuration...</div>
     <div id="result" class="result"></div>
+
+    <!-- bottom back only -->
+    <button class="back-bottom" type="button" onclick="window.location.href='/'">Back to Home</button>
   </div>
 
   <script>
@@ -182,12 +185,6 @@ const char* timerModeHtml = R"rawliteral(
       const loading = document.getElementById('loading');
       const result = document.getElementById('result');
 
-      console.log("Timer form submitted with 5 slots:", {
-        onTime1, offTime1, onTime2, offTime2, onTime3, offTime3,
-        onTime4, offTime4, onTime5, offTime5
-      });
-
-      // at least one complete slot
       const has1 = onTime1 && offTime1;
       const has2 = onTime2 && offTime2;
       const has3 = onTime3 && offTime3;
@@ -200,7 +197,6 @@ const char* timerModeHtml = R"rawliteral(
         return;
       }
 
-      // detect half-filled slots
       const bad = [];
       if ((onTime1 && !offTime1) || (!onTime1 && offTime1)) bad.push(1);
       if ((onTime2 && !offTime2) || (!onTime2 && offTime2)) bad.push(2);
@@ -215,7 +211,6 @@ const char* timerModeHtml = R"rawliteral(
         return;
       }
 
-      // build query
       let queryParams = [];
       if (has1) {
         queryParams.push('on1=' + encodeURIComponent(onTime1));
