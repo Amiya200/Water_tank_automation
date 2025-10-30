@@ -8,101 +8,65 @@ const char* countdownModeHtml = R"rawliteral(
   <style>
     body {
       background-color: #eaecee;
-      color: #e0e0e0;
       font-family: 'Segoe UI', sans-serif;
       margin: 0;
       padding: 0;
     }
-
     .container {
       max-width: 420px;
-      margin: 60px auto;
-      padding: 30px 25px;
-      background: #1c1c1c;
-      border-radius: 16px;
-      box-shadow: 0 0 18px rgba(63, 142, 252, 0.2);
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.12);
+      border-radius: 14px;
+      margin-top: 20px;
     }
-
-    h1 {
-      text-align: center;
-      color: #3f8efc;
-      margin-bottom: 25px;
-      font-size: 24px;
-    }
-
-    label {
-      font-size: 16px;
-      display: block;
-      margin-bottom: 10px;
-      text-align: left;
-    }
-
+    h1 { text-align: center; color: #2c3e50; margin-bottom: 14px; }
+    label { display: block; margin-bottom: 6px; color: #2c3e50; }
     input[type="number"] {
       width: 100%;
-      padding: 12px;
-      font-size: 18px;
-      background-color: #2b2b2b;
-      border: none;
+      padding: 10px;
+      border: 1px solid #ccd1d1;
       border-radius: 8px;
-      color: white;
-      margin-bottom: 20px;
+      margin-bottom: 14px;
+      font-size: 14px;
     }
-
     .button {
+      display: block;
       width: 100%;
-      padding: 14px;
-      font-size: 18px;
-      background-color: #3f8efc;
+      padding: 12px;
+      font-size: 16px;
+      background: #28a745;
+      color: #fff;
       border: none;
       border-radius: 10px;
-      color: white;
       cursor: pointer;
-      transition: 0.3s;
+      transition: .2s;
     }
-
-    .button:hover {
-      background-color: #64a7ff;
+    .button.stop { background: #dc3545; }
+    .button:hover { opacity: .9; }
+    #status, #message {
+      margin-top: 12px;
+      font-size: 14px;
+      white-space: pre-wrap;
     }
-
     .back-btn {
-      background-color: #5bc0de;
-      color: black;
-      margin-top: 15px;
-    }
-
-    .back-btn:hover {
-      background-color: #7cd6ee;
-    }
-
-    #message, #status {
       margin-top: 20px;
-      font-size: 16px;
-      text-align: center;
-    }
-
-    #status {
-      color: #ffd54f;
-    }
-
-    #message {
-      color: #00e676;
+      background: #3498db;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Countdown Mode</h1>
-    <form id="countdownForm">
-      <label>Duration (in minutes)</label>
-      <input type="number" id="duration" name="duration" min="1" max="180" required>
-
-      <button type="button" class="button" id="toggleBtn" onclick="startSmartCountdown()">Start</button>
-    </form>
-
+    <h1>Countdown</h1>
     <p id="status">Motor Status: <span id="motorText">Loading...</span></p>
+    <form id="countdownForm">
+      <label>Duration (minutes)</label>
+      <input type="number" id="duration" name="duration" min="1" max="180" required />
+      <button type="button" id="toggleBtn" class="button" onclick="startSmartCountdown()">Start</button>
+    </form>
     <p id="message"></p>
-
-    <a href="/"><button class="button back-btn">Back</button></a>
+    <a href="/"><button class="button back-btn" type="button">Back</button></a>
   </div>
 
   <script>
@@ -111,10 +75,10 @@ const char* countdownModeHtml = R"rawliteral(
     async function getMotorStatus() {
       try {
         const res = await fetch('/motor_status');
-        const status = await res.text();
-        motorState = (status.trim() === "ON");
-        updateToggleLabel();
+        const text = await res.text();
+        motorState = (text.trim() === "ON");
         document.getElementById("motorText").textContent = motorState ? "ON" : "OFF";
+        updateToggleLabel();
       } catch (e) {
         document.getElementById("motorText").textContent = "Unknown";
       }
@@ -122,41 +86,30 @@ const char* countdownModeHtml = R"rawliteral(
 
     function updateToggleLabel() {
       const btn = document.getElementById("toggleBtn");
-      btn.textContent = motorState
-        ? "Start Countdown to OFF"
-        : "Start Countdown to ON";
+      // If motor is currently ON, countdown will TURN IT OFF at the end
+      // so we label as 'Start (will turn OFF)'
+      btn.textContent = motorState ? "Start (Motor ON → OFF)" : "Start (Motor OFF → ON)";
+      if (motorState) btn.classList.add("stop");
+      else btn.classList.remove("stop");
     }
 
+    // ✅ THIS was the broken part earlier (await in non-async)
     async function startSmartCountdown() {
-      const duration = parseInt(document.getElementById("duration").value);
-      if (!duration || duration < 1 || duration > 180) {
-        alert("Please enter a valid duration.");
+      const mins = parseInt(document.getElementById("duration").value);
+      if (!mins || mins < 1 || mins > 180) {
+        alert("Enter 1-180 minutes");
         return;
       }
-
       const mode = motorState ? "on" : "off";
-      const res = await fetch(`/start_countdown?duration=${duration}&mode=${mode}`);
-      const msg = await res.text();
-
-<<<<<<< HEAD
-      document.getElementById("message").textContent = "ok" + msg;
-=======
-      document.getElementById("message").textContent = msg;
->>>>>>> b24165c607cf9fcc22a9d4bbc0fb7f02b6d9112c
-      document.getElementById("countdownForm").reset();
-
-      motorState = !motorState; // expected future state
-      updateToggleLabel();
-
-      // Countdown: wait and fetch status again
-      setTimeout(() => {
-        getMotorStatus();
-<<<<<<< HEAD
-        document.getElementById("message").textContent = ` Countdown finished — Motor is now ${motorState ? "ON" : "OFF"}`;
-=======
-        document.getElementById("message").textContent = `Countdown finished — Motor is now ${motorState ? "ON" : "OFF"}`;
->>>>>>> b24165c607cf9fcc22a9d4bbc0fb7f02b6d9112c
-      }, duration * 60000); // convert minutes to milliseconds
+      try {
+        const res = await fetch(`/start_countdown?duration=${mins}&mode=${mode}`);
+        const msg = await res.text();
+        document.getElementById("message").textContent = msg;
+        // refresh motor status after sending
+        setTimeout(getMotorStatus, 500);
+      } catch (e) {
+        document.getElementById("message").textContent = "Failed to send to ESP.";
+      }
     }
 
     window.onload = getMotorStatus;

@@ -78,9 +78,6 @@ const char* timerModeHtml = R"rawliteral(
       transform: translateY(-2px);
       box-shadow: 0 6px 12px rgba(13, 202, 240, 0.4);
     }
-    button:active {
-      transform: translateY(0);
-    }
     .result {
       margin-top: 20px;
       font-size: 16px;
@@ -89,11 +86,11 @@ const char* timerModeHtml = R"rawliteral(
       border-radius: 8px;
       background: #1a1a1a;
     }
-    .success { 
+    .success {
       color: #28a745;
       border: 2px solid #28a745;
     }
-    .error { 
+    .error {
       color: #dc3545;
       border: 2px solid #dc3545;
     }
@@ -170,7 +167,7 @@ const char* timerModeHtml = R"rawliteral(
   <script>
     document.getElementById('timerForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      
+
       const onTime1 = document.getElementById('onTime1').value;
       const offTime1 = document.getElementById('offTime1').value;
       const onTime2 = document.getElementById('onTime2').value;
@@ -181,7 +178,7 @@ const char* timerModeHtml = R"rawliteral(
       const offTime4 = document.getElementById('offTime4').value;
       const onTime5 = document.getElementById('onTime5').value;
       const offTime5 = document.getElementById('offTime5').value;
-      
+
       const loading = document.getElementById('loading');
       const result = document.getElementById('result');
 
@@ -190,61 +187,59 @@ const char* timerModeHtml = R"rawliteral(
         onTime4, offTime4, onTime5, offTime5
       });
 
-      // Check if at least one complete time slot is filled
-      const hasCompleteSlot1 = onTime1 && offTime1;
-      const hasCompleteSlot2 = onTime2 && offTime2;
-      const hasCompleteSlot3 = onTime3 && offTime3;
-      const hasCompleteSlot4 = onTime4 && offTime4;
-      const hasCompleteSlot5 = onTime5 && offTime5;
-      
-      if (!hasCompleteSlot1 && !hasCompleteSlot2 && !hasCompleteSlot3 && 
-          !hasCompleteSlot4 && !hasCompleteSlot5) {
+      // at least one complete slot
+      const has1 = onTime1 && offTime1;
+      const has2 = onTime2 && offTime2;
+      const has3 = onTime3 && offTime3;
+      const has4 = onTime4 && offTime4;
+      const has5 = onTime5 && offTime5;
+
+      if (!has1 && !has2 && !has3 && !has4 && !has5) {
         result.className = 'result error';
         result.innerHTML = "Please fill at least one complete time slot (both ON and OFF times)";
         return;
       }
 
-      // Check for incomplete slots (only one time filled)
-      const incompleteSlots = [];
-      if ((onTime1 && !offTime1) || (!onTime1 && offTime1)) incompleteSlots.push(1);
-      if ((onTime2 && !offTime2) || (!onTime2 && offTime2)) incompleteSlots.push(2);
-      if ((onTime3 && !offTime3) || (!onTime3 && offTime3)) incompleteSlots.push(3);
-      if ((onTime4 && !offTime4) || (!onTime4 && offTime4)) incompleteSlots.push(4);
-      if ((onTime5 && !offTime5) || (!onTime5 && offTime5)) incompleteSlots.push(5);
-      
-      if (incompleteSlots.length > 0) {
+      // detect half-filled slots
+      const bad = [];
+      if ((onTime1 && !offTime1) || (!onTime1 && offTime1)) bad.push(1);
+      if ((onTime2 && !offTime2) || (!onTime2 && offTime2)) bad.push(2);
+      if ((onTime3 && !offTime3) || (!onTime3 && offTime3)) bad.push(3);
+      if ((onTime4 && !offTime4) || (!onTime4 && offTime4)) bad.push(4);
+      if ((onTime5 && !offTime5) || (!onTime5 && offTime5)) bad.push(5);
+
+      if (bad.length > 0) {
         result.className = 'result error';
-        result.innerHTML = "Incomplete time slot" + (incompleteSlots.length > 1 ? 's' : '') + 
-                           " " + incompleteSlots.join(', ') + 
-                           ": Please provide both ON and OFF times or leave both empty";
+        result.innerHTML = "Incomplete time slot(s): " + bad.join(', ') +
+                           ". Please fill both ON and OFF or leave both empty.";
         return;
+      }
+
+      // build query
+      let queryParams = [];
+      if (has1) {
+        queryParams.push('on1=' + encodeURIComponent(onTime1));
+        queryParams.push('off1=' + encodeURIComponent(offTime1));
+      }
+      if (has2) {
+        queryParams.push('on2=' + encodeURIComponent(onTime2));
+        queryParams.push('off2=' + encodeURIComponent(offTime2));
+      }
+      if (has3) {
+        queryParams.push('on3=' + encodeURIComponent(onTime3));
+        queryParams.push('off3=' + encodeURIComponent(offTime3));
+      }
+      if (has4) {
+        queryParams.push('on4=' + encodeURIComponent(onTime4));
+        queryParams.push('off4=' + encodeURIComponent(offTime4));
+      }
+      if (has5) {
+        queryParams.push('on5=' + encodeURIComponent(onTime5));
+        queryParams.push('off5=' + encodeURIComponent(offTime5));
       }
 
       loading.style.display = 'block';
       result.innerHTML = '';
-
-      // Build query parameters only for filled slots
-      let queryParams = [];
-      if (onTime1 && offTime1) {
-        queryParams.push('on1=' + encodeURIComponent(onTime1));
-        queryParams.push('off1=' + encodeURIComponent(offTime1));
-      }
-      if (onTime2 && offTime2) {
-        queryParams.push('on2=' + encodeURIComponent(onTime2));
-        queryParams.push('off2=' + encodeURIComponent(offTime2));
-      }
-      if (onTime3 && offTime3) {
-        queryParams.push('on3=' + encodeURIComponent(onTime3));
-        queryParams.push('off3=' + encodeURIComponent(offTime3));
-      }
-      if (onTime4 && offTime4) {
-        queryParams.push('on4=' + encodeURIComponent(onTime4));
-        queryParams.push('off4=' + encodeURIComponent(offTime4));
-      }
-      if (onTime5 && offTime5) {
-        queryParams.push('on5=' + encodeURIComponent(onTime5));
-        queryParams.push('off5=' + encodeURIComponent(offTime5));
-      }
 
       fetch('/timer/set?' + queryParams.join('&'))
         .then(function(response) {
@@ -257,19 +252,14 @@ const char* timerModeHtml = R"rawliteral(
             throw new Error('Server returned ' + response.status);
           }
         })
-        .then(function(responseText) {
+        .then(function(text) {
           result.className = 'result success';
-<<<<<<< HEAD
-          result.innerHTML = "done Timer configuration saved successfully!<br><br>" + responseText;
-=======
-          result.innerHTML = "Timer configuration saved successfully!<br><br>" + responseText;
->>>>>>> b24165c607cf9fcc22a9d4bbc0fb7f02b6d9112c
+          result.innerHTML = "Timer configuration saved successfully!<br><br><pre style='text-align:left;white-space:pre-wrap;'>" + text + "</pre>";
         })
-        .catch(function(error) {
+        .catch(function(err) {
           loading.style.display = 'none';
           result.className = 'result error';
-          result.innerHTML = "Connection error: Unable to reach the server. Please check your connection and try again.";
-          console.error("Fetch error:", error);
+          result.innerHTML = "Connection error: " + err.message;
         });
     });
   </script>
