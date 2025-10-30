@@ -44,6 +44,8 @@ static String g_timerOff[5];
 static String g_searchGap;
 static String g_searchDry;
 static String g_searchDays;
+static String g_searchOnTime;
+static String g_searchOffTime;
 
 // twist
 static String g_twistOnDur;
@@ -128,13 +130,23 @@ static void ws_applyUartPacketToWeb(const char *raw) {
     return;
   }
 
-  // SEARCH:SET:<gap>:<dry>:<days>
+  // SEARCH:SET:<gap>:<dry>:<onTime>:<offTime>:<days>
   if (cmd == "SEARCH") {
     if (rest.startsWith("SET:")) {
       String body = rest.substring(4);
       int a = body.indexOf(':');
       int b = (a == -1) ? -1 : body.indexOf(':', a + 1);
-      if (a != -1 && b != -1) {
+      int c = (b == -1) ? -1 : body.indexOf(':', b + 1);
+      int d = (c == -1) ? -1 : body.indexOf(':', c + 1);
+
+      if (a != -1 && b != -1 && c != -1 && d != -1) {
+        g_searchGap     = body.substring(0, a);
+        g_searchDry     = body.substring(a + 1, b);
+        g_searchOnTime  = body.substring(b + 1, c);
+        g_searchOffTime = body.substring(c + 1, d);
+        g_searchDays    = body.substring(d + 1);
+      } else if (a != -1 && b != -1) {
+        // backward compatibility
         g_searchGap  = body.substring(0, a);
         g_searchDry  = body.substring(a + 1, b);
         g_searchDays = body.substring(b + 1);
@@ -193,7 +205,6 @@ void start_webserver() {
   server.on("/countdown", HTTP_GET, []() {
     server.send(200, "text/html", countdownModeHtml);
   });
-  // HTML calls /start_countdown
   server.on("/start_countdown", HTTP_GET, []() {
     if (!server.hasArg("duration") || !server.hasArg("mode")) {
       server.send(400, "text/plain", "Missing duration or mode");
@@ -223,9 +234,7 @@ void start_webserver() {
     server.send(200, "text/html", timerModeHtml);
   });
 
-  // 🔴 this is the one causing you trouble — now tolerant
   server.on("/timer/set", HTTP_GET, []() {
-    // tell STM32 to start fresh
     ws_sendPacketToSTM32("@TIMER:CLEAR");
     delay(5);
 
@@ -233,38 +242,29 @@ void start_webserver() {
     String resp = "Timer settings received:\n";
 
     for (int i = 1; i <= 5; i++) {
-      // 1. what your JS sends: on1 / off1
       String on  = server.arg("on"  + String(i));
       String off = server.arg("off" + String(i));
-
-      // 2. what a plain form submit might send: onTime1 / offTime1
       if (!on.length())
         on = server.arg("onTime" + String(i));
       if (!off.length())
         off = server.arg("offTime" + String(i));
 
-      // 3. if still empty, skip this slot
       if (on.length() && off.length()) {
         any = true;
         g_timerOn[i - 1]  = on;
         g_timerOff[i - 1] = off;
-
-        // send to STM32
         ws_sendPacketToSTM32("@TIMER:SET:" + String(i) + ":" + on + ":" + off);
         delay(3);
-
         resp += "Slot " + String(i) + ": " + on + " -> " + off + "\n";
       }
     }
 
-    if (any) {
+    if (any)
       server.send(200, "text/plain", resp);
-    } else {
-      // debug response so you can see what actually reached ESP
+    else {
       String dbg = "No valid timer slots received.\nGot args:\n";
-      for (int i = 0; i < server.args(); i++) {
+      for (int i = 0; i < server.args(); i++)
         dbg += server.argName(i) + " = " + server.arg(i) + "\n";
-      }
       server.send(400, "text/plain", dbg);
     }
   });
@@ -274,8 +274,10 @@ void start_webserver() {
     server.send(200, "text/html", searchModeHtml);
   });
   server.on("/search_submit", HTTP_GET, []() {
-    String gap = server.arg("gap");
-    String dry = server.arg("dryrun");
+    String gap     = server.arg("gap");
+    String dry     = server.arg("dryrun");
+    String onTime  = server.arg("onTime");
+    String offTime = server.arg("offTime");
 
     String days;
     for (int i = 0; i < server.args(); i++) {
@@ -285,12 +287,22 @@ void start_webserver() {
       }
     }
 
-    g_searchGap  = gap;
-    g_searchDry  = dry;
-    g_searchDays = days;
+    g_searchGap      = gap;
+    g_searchDry      = dry;
+    g_searchOnTime   = onTime;
+    g_searchOffTime  = offTime;
+    g_searchDays     = days;
 
-    ws_sendPacketToSTM32("@SEARCH:SET:" + gap + ":" + dry + ":" + days);
-    server.send(200, "text/plain", "Search settings saved");
+    ws_sendPacketToSTM32("@SEARCH:SET:" + gap + ":" + dry + ":" +
+                         onTime + ":" + offTime + ":" + days);
+
+    String resp = "Search settings saved:\n";
+    resp += "Gap: " + gap + "\n";
+    resp += "DryRun: " + dry + "\n";
+    resp += "ON Time: " + onTime + "\n";
+    resp += "OFF Time: " + offTime + "\n";
+    resp += "Days: " + days + "\n";
+    server.send(200, "text/plain", resp);
   });
 
   // TWIST
@@ -317,7 +329,7 @@ void start_webserver() {
     server.send(200, "text/plain", "Twist settings saved");
   });
 
-  // SEMI
+  // SEMI AUTO
   server.on("/semi", HTTP_GET, []() {
     server.send(200, "text/html", semiAutoModeHtml);
   });
@@ -328,12 +340,7 @@ void start_webserver() {
     server.send(200, "text/plain", g_motorState ? "ON" : "OFF");
   });
 
-  // stub for dashboard link
-  server.on("/settings", HTTP_GET, []() {
-    server.send(200, "text/plain", "Settings page (not implemented on ESP)");
-  });
-
-  // MOTOR STATUS (all pages use this)
+  // MOTOR STATUS
   server.on("/motor_status", HTTP_GET, []() {
     server.send(200, "text/plain", g_motorState ? "ON" : "OFF");
   });
@@ -345,13 +352,15 @@ void start_webserver() {
         "{\"level\":" + String(g_waterLevel) + "}");
   });
 
-  // DEBUG STATE
+  // DEBUG STATE JSON
   server.on("/state.json", HTTP_GET, []() {
     String json = "{";
     json += "\"motor\":"; json += (g_motorState ? "true" : "false"); json += ",";
     json += "\"level\":"; json += g_waterLevel; json += ",";
     json += "\"search_gap\":\"" + g_searchGap + "\",";
     json += "\"search_dry\":\"" + g_searchDry + "\",";
+    json += "\"search_onTime\":\"" + g_searchOnTime + "\",";
+    json += "\"search_offTime\":\"" + g_searchOffTime + "\",";
     json += "\"search_days\":\"" + g_searchDays + "\",";
     json += "\"twist_onDur\":\"" + g_twistOnDur + "\",";
     json += "\"twist_offDur\":\"" + g_twistOffDur + "\",";
