@@ -47,7 +47,7 @@ const char* timerModeHtml = R"rawliteral(
       margin-bottom: 5px;
       color: #ccc;
     }
-    .custom-time {
+    input[type="time"] {
       width: 45%;
       padding: 12px;
       margin: 8px;
@@ -56,7 +56,11 @@ const char* timerModeHtml = R"rawliteral(
       border: 2px solid #333;
       background: #222;
       color: white;
-      cursor: pointer;
+      transition: border-color 0.3s ease;
+    }
+    input[type="time"]:focus {
+      border-color: #0dcaf0;
+      outline: none;
     }
     button {
       padding: 12px 25px;
@@ -83,64 +87,25 @@ const char* timerModeHtml = R"rawliteral(
       border-radius: 8px;
       background: #1a1a1a;
     }
-    .success { color: #28a745; border: 2px solid #28a745; }
-    .error   { color: #dc3545; border: 2px solid #dc3545; }
-    .loading { font-size: 14px; color: #0dcaf0; margin-top: 10px; font-style: italic; }
+    .success {
+      color: #28a745;
+      border: 2px solid #28a745;
+    }
+    .error {
+      color: #dc3545;
+      border: 2px solid #dc3545;
+    }
+    .loading {
+      font-size: 14px;
+      color: #0dcaf0;
+      margin-top: 10px;
+      font-style: italic;
+    }
     .back-bottom {
-      background: #222; margin-top: 18px; border: 1px solid #0dcaf0;
-      color: #0dcaf0; padding: 10px 20px; border-radius: 6px; cursor: pointer;
+      background: #222;
+      margin-top: 18px;
+      border: 1px solid #0dcaf0;
     }
-    .optional { font-size:12px;color:#888;font-style:italic;margin-top:5px; }
-
-    /* --- Modal --- */
-    .modal {
-      display:none;
-      position:fixed;
-      z-index:1000;
-      left:0; top:0;
-      width:100%; height:100%;
-      background:rgba(0,0,0,0.7);
-      justify-content:center;
-      align-items:center;
-    }
-    .modal-content {
-      background:#111;
-      padding:20px;
-      border-radius:12px;
-      text-align:center;
-      width:280px;
-      box-shadow:0 0 10px #0dcaf0;
-    }
-    .modal-content h2 {
-      color:#0dcaf0;
-      margin-bottom:15px;
-    }
-    .time-inputs {
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      gap:10px;
-      margin-bottom:20px;
-    }
-    select {
-      background:#222;
-      color:white;
-      border:2px solid #333;
-      border-radius:6px;
-      font-size:18px;
-      padding:5px;
-    }
-    .modal-btn {
-      padding:10px 20px;
-      margin:5px;
-      border:none;
-      border-radius:8px;
-      font-weight:bold;
-      cursor:pointer;
-      font-size:15px;
-    }
-    .set-btn { background:#0dcaf0; color:white; }
-    .cancel-btn { background:#333; color:#ccc; border:1px solid #555; }
   </style>
 </head>
 <body>
@@ -148,119 +113,148 @@ const char* timerModeHtml = R"rawliteral(
 
   <div class="form-container">
     <form id="timerForm">
-      <div id="slotsContainer"></div>
+      <div class="time-slot">
+        <h3>Time Slot 1</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime1"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime1">
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 2</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime2"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime2">
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 3</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime3"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime3">
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 4</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime4"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime4">
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
+      </div>
+
+      <div class="time-slot">
+        <h3>Time Slot 5</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime5"><br>
+        <label>OFF Time:</label>
+        <input type="time" id="offTime5">
+        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
+      </div>
+
       <button type="submit">Set Timer</button>
     </form>
-
     <div class="loading" id="loading" style="display: none;">Sending timer configuration...</div>
     <div id="result" class="result"></div>
+
+    <!-- bottom back only -->
     <button class="back-bottom" type="button" onclick="window.location.href='/'">Back to Home</button>
   </div>
 
-  <!-- Custom Time Picker Modal -->
-  <div class="modal" id="timeModal">
-    <div class="modal-content">
-      <h2>Select Time</h2>
-      <div class="time-inputs">
-        <select id="hourSelect"></select> :
-        <select id="minuteSelect"></select>
-      </div>
-      <button class="modal-btn set-btn" id="setBtn">Set</button>
-      <button class="modal-btn cancel-btn" id="cancelBtn">Cancel</button>
-    </div>
-  </div>
-
   <script>
-    const slotsContainer = document.getElementById('slotsContainer');
-    const timeModal = document.getElementById('timeModal');
-    const hourSel = document.getElementById('hourSelect');
-    const minSel = document.getElementById('minuteSelect');
-    const setBtn = document.getElementById('setBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-
-    // populate hours/minutes
-    for (let h=0; h<24; h++) {
-      let opt=document.createElement('option');
-      opt.value=opt.textContent=String(h).padStart(2,'0');
-      hourSel.appendChild(opt);
-    }
-    for (let m=0; m<60; m+=1) {
-      let opt=document.createElement('option');
-      opt.value=opt.textContent=String(m).padStart(2,'0');
-      minSel.appendChild(opt);
-    }
-
-    let currentInput=null;
-
-    // build slots
-    for (let i=1;i<=5;i++){
-      const slot=document.createElement('div');
-      slot.className='time-slot';
-      slot.innerHTML=`
-        <h3>Time Slot ${i}</h3>
-        <label>ON Time:</label>
-        <input class="custom-time" id="onTime${i}" readonly placeholder="Select time">
-        <label>OFF Time:</label>
-        <input class="custom-time" id="offTime${i}" readonly placeholder="Select time">
-        <div class="optional">(Optional - fill both or none)</div>`;
-      slotsContainer.appendChild(slot);
-    }
-
-    document.querySelectorAll('.custom-time').forEach(inp=>{
-      inp.addEventListener('click',()=>{
-        currentInput=inp;
-        const val=inp.value.split(':');
-        if(val.length===2){hourSel.value=val[0];minSel.value=val[1];}
-        timeModal.style.display='flex';
-      });
-    });
-
-    setBtn.onclick=()=>{
-      if(currentInput){
-        const t=`${hourSel.value}:${minSel.value}`;
-        currentInput.value=t;
-      }
-      timeModal.style.display='none';
-    };
-    cancelBtn.onclick=()=>{timeModal.style.display='none';};
-
-    window.onclick=(e)=>{if(e.target===timeModal)timeModal.style.display='none';};
-
-    // form submission
-    document.getElementById('timerForm').addEventListener('submit',function(e){
+    document.getElementById('timerForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const result=document.getElementById('result');
-      const loading=document.getElementById('loading');
-      const times=[];
-      for(let i=1;i<=5;i++){
-        const on=document.getElementById('onTime'+i).value;
-        const off=document.getElementById('offTime'+i).value;
-        if((on&&!off)||(!on&&off)){
-          result.className='result error';
-          result.innerHTML=`Incomplete slot ${i}. Fill both or none.`;
-          return;
-        }
-        if(on&&off){
-          times.push(`on${i}=${encodeURIComponent(on)}&off${i}=${encodeURIComponent(off)}`);
-        }
-      }
-      if(times.length===0){
-        result.className='result error';
-        result.innerHTML='Please fill at least one complete time slot.';
+
+      const onTime1 = document.getElementById('onTime1').value;
+      const offTime1 = document.getElementById('offTime1').value;
+      const onTime2 = document.getElementById('onTime2').value;
+      const offTime2 = document.getElementById('offTime2').value;
+      const onTime3 = document.getElementById('onTime3').value;
+      const offTime3 = document.getElementById('offTime3').value;
+      const onTime4 = document.getElementById('onTime4').value;
+      const offTime4 = document.getElementById('offTime4').value;
+      const onTime5 = document.getElementById('onTime5').value;
+      const offTime5 = document.getElementById('offTime5').value;
+
+      const loading = document.getElementById('loading');
+      const result = document.getElementById('result');
+
+      const has1 = onTime1 && offTime1;
+      const has2 = onTime2 && offTime2;
+      const has3 = onTime3 && offTime3;
+      const has4 = onTime4 && offTime4;
+      const has5 = onTime5 && offTime5;
+
+      if (!has1 && !has2 && !has3 && !has4 && !has5) {
+        result.className = 'result error';
+        result.innerHTML = "Please fill at least one complete time slot (both ON and OFF times)";
         return;
       }
-      loading.style.display='block';
-      result.innerHTML='';
-      fetch('/timer/set?'+times.join('&'))
-        .then(r=>{loading.style.display='none';if(r.ok)return r.text();throw new Error('Server '+r.status);})
-        .then(t=>{
-          result.className='result success';
-          result.innerHTML='Timer configuration saved successfully!<br><br><pre style="text-align:left;white-space:pre-wrap;">'+t+'</pre>';
+
+      const bad = [];
+      if ((onTime1 && !offTime1) || (!onTime1 && offTime1)) bad.push(1);
+      if ((onTime2 && !offTime2) || (!onTime2 && offTime2)) bad.push(2);
+      if ((onTime3 && !offTime3) || (!onTime3 && offTime3)) bad.push(3);
+      if ((onTime4 && !offTime4) || (!onTime4 && offTime4)) bad.push(4);
+      if ((onTime5 && !offTime5) || (!onTime5 && offTime5)) bad.push(5);
+
+      if (bad.length > 0) {
+        result.className = 'result error';
+        result.innerHTML = "Incomplete time slot(s): " + bad.join(', ') +
+                           ". Please fill both ON and OFF or leave both empty.";
+        return;
+      }
+
+      let queryParams = [];
+      if (has1) {
+        queryParams.push('on1=' + encodeURIComponent(onTime1));
+        queryParams.push('off1=' + encodeURIComponent(offTime1));
+      }
+      if (has2) {
+        queryParams.push('on2=' + encodeURIComponent(onTime2));
+        queryParams.push('off2=' + encodeURIComponent(offTime2));
+      }
+      if (has3) {
+        queryParams.push('on3=' + encodeURIComponent(onTime3));
+        queryParams.push('off3=' + encodeURIComponent(offTime3));
+      }
+      if (has4) {
+        queryParams.push('on4=' + encodeURIComponent(onTime4));
+        queryParams.push('off4=' + encodeURIComponent(offTime4));
+      }
+      if (has5) {
+        queryParams.push('on5=' + encodeURIComponent(onTime5));
+        queryParams.push('off5=' + encodeURIComponent(offTime5));
+      }
+
+      loading.style.display = 'block';
+      result.innerHTML = '';
+
+      fetch('/timer/set?' + queryParams.join('&'))
+        .then(function(response) {
+          loading.style.display = 'none';
+          if (response.ok) {
+            return response.text();
+          } else {
+            result.className = 'result error';
+            result.innerHTML = "Failed to save timer configuration. Server returned: " + response.status;
+            throw new Error('Server returned ' + response.status);
+          }
         })
-        .catch(e=>{
-          loading.style.display='none';
-          result.className='result error';
-          result.innerHTML='Connection error: '+e.message;
+        .then(function(text) {
+          result.className = 'result success';
+          result.innerHTML = "Timer configuration saved successfully!<br><br><pre style='text-align:left;white-space:pre-wrap;'>" + text + "</pre>";
+        })
+        .catch(function(err) {
+          loading.style.display = 'none';
+          result.className = 'result error';
+          result.innerHTML = "Connection error: " + err.message;
         });
     });
   </script>

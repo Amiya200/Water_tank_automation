@@ -4,11 +4,11 @@
 #include <Arduino.h>
 
 #if defined(ESP8266)
-  #include <ESP8266WebServer.h>
-  static ESP8266WebServer server(80);
+#include <ESP8266WebServer.h>
+static ESP8266WebServer server(80);
 #else
-  #include <WebServer.h>
-  static WebServer server(80);
+#include <WebServer.h>
+static WebServer server(80);
 #endif
 
 #include "web_server.h"
@@ -21,20 +21,20 @@
 #include "esp_uart_comm.h"
 
 // dashboard HTML is in a .cpp
-extern const char* htmlContent;
+extern const char *htmlContent;
 
 #ifndef MOTOR_PIN
-  #define MOTOR_PIN 2
+#define MOTOR_PIN 2
 #endif
 
 // ===== STATE =====
-static bool   g_motorState          = false;
-static int    g_waterLevel          = 70;
+static bool g_motorState = false;
+static int g_waterLevel = 70;
 
 // countdown
-static bool   g_countdownActive     = false;
+static bool g_countdownActive = false;
 static unsigned long g_countdownEnd = 0;
-static bool   g_countdownFinalMotor = false;
+static bool g_countdownFinalMotor = false;
 
 // timer
 static String g_timerOn[5];
@@ -82,23 +82,41 @@ static void ws_applyUartPacketToWeb(const char *raw) {
   if (pkt.startsWith("@")) pkt.remove(0, 1);
 
   // backward compatible
-  if (pkt == "MOTOR_ON")  { ws_setMotor(true);  return; }
-  if (pkt == "MOTOR_OFF") { ws_setMotor(false); return; }
+  if (pkt == "MOTOR_ON") {
+    ws_setMotor(true);
+    return;
+  }
+  if (pkt == "MOTOR_OFF") {
+    ws_setMotor(false);
+    return;
+  }
 
   // backward compatible water
-  if (pkt == "10W") { g_waterLevel = 10;  return; }
-  if (pkt == "30W") { g_waterLevel = 30;  return; }
-  if (pkt == "70W") { g_waterLevel = 70;  return; }
-  if (pkt == "1:W") { g_waterLevel = 100; return; }
+  if (pkt == "10W") {
+    g_waterLevel = 10;
+    return;
+  }
+  if (pkt == "30W") {
+    g_waterLevel = 30;
+    return;
+  }
+  if (pkt == "70W") {
+    g_waterLevel = 70;
+    return;
+  }
+  if (pkt == "1:W") {
+    g_waterLevel = 100;
+    return;
+  }
 
   // new format
   int p1 = pkt.indexOf(':');
-  String cmd  = (p1 == -1) ? pkt : pkt.substring(0, p1);
-  String rest = (p1 == -1) ? ""  : pkt.substring(p1 + 1);
+  String cmd = (p1 == -1) ? pkt : pkt.substring(0, p1);
+  String rest = (p1 == -1) ? "" : pkt.substring(p1 + 1);
 
   // MOTOR:ON / MOTOR:OFF
   if (cmd == "MOTOR") {
-    if (rest == "ON")  ws_setMotor(true);
+    if (rest == "ON") ws_setMotor(true);
     if (rest == "OFF") ws_setMotor(false);
     return;
   }
@@ -107,7 +125,7 @@ static void ws_applyUartPacketToWeb(const char *raw) {
   if (cmd == "TIMER") {
     if (rest == "CLEAR") {
       for (int i = 0; i < 5; i++) {
-        g_timerOn[i]  = "";
+        g_timerOn[i] = "";
         g_timerOff[i] = "";
       }
       return;
@@ -119,10 +137,10 @@ static void ws_applyUartPacketToWeb(const char *raw) {
       int p3 = (p2 == -1) ? -1 : rest.indexOf(':', p2 + 1);
       if (p2 != -1 && p3 != -1) {
         int slot = rest.substring(4, p2).toInt();
-        String on  = rest.substring(p2 + 1, p3);
+        String on = rest.substring(p2 + 1, p3);
         String off = rest.substring(p3 + 1);
         if (slot >= 1 && slot <= 5) {
-          g_timerOn[slot - 1]  = on;
+          g_timerOn[slot - 1] = on;
           g_timerOff[slot - 1] = off;
         }
       }
@@ -140,15 +158,15 @@ static void ws_applyUartPacketToWeb(const char *raw) {
       int d = (c == -1) ? -1 : body.indexOf(':', c + 1);
 
       if (a != -1 && b != -1 && c != -1 && d != -1) {
-        g_searchGap     = body.substring(0, a);
-        g_searchDry     = body.substring(a + 1, b);
-        g_searchOnTime  = body.substring(b + 1, c);
+        g_searchGap = body.substring(0, a);
+        g_searchDry = body.substring(a + 1, b);
+        g_searchOnTime = body.substring(b + 1, c);
         g_searchOffTime = body.substring(c + 1, d);
-        g_searchDays    = body.substring(d + 1);
+        g_searchDays = body.substring(d + 1);
       } else if (a != -1 && b != -1) {
         // backward compatibility
-        g_searchGap  = body.substring(0, a);
-        g_searchDry  = body.substring(a + 1, b);
+        g_searchGap = body.substring(0, a);
+        g_searchDry = body.substring(a + 1, b);
         g_searchDays = body.substring(b + 1);
       }
     }
@@ -164,11 +182,11 @@ static void ws_applyUartPacketToWeb(const char *raw) {
       int c = (b == -1) ? -1 : body.indexOf(':', b + 1);
       int d = (c == -1) ? -1 : body.indexOf(':', c + 1);
       if (a != -1 && b != -1 && c != -1 && d != -1) {
-        g_twistOnDur   = body.substring(0, a);
-        g_twistOffDur  = body.substring(a + 1, b);
-        g_twistOnTime  = body.substring(b + 1, c);
+        g_twistOnDur = body.substring(0, a);
+        g_twistOffDur = body.substring(a + 1, b);
+        g_twistOnTime = body.substring(b + 1, c);
         g_twistOffTime = body.substring(c + 1, d);
-        g_twistDays    = body.substring(d + 1);
+        g_twistDays = body.substring(d + 1);
       }
     }
     return;
@@ -192,42 +210,50 @@ void start_webserver() {
   });
   server.on("/manual/on", HTTP_GET, []() {
     ws_setMotor(true);
-    ws_sendPacketToSTM32("@MOTOR:ON");
-    server.send(200, "text/plain", "Motor turned ON");
+    ws_sendPacketToSTM32("@MANUAL:ON");
+    server.send(200, "text/plain", "Manual Mode: Motor turned ON");
   });
+
   server.on("/manual/off", HTTP_GET, []() {
     ws_setMotor(false);
-    ws_sendPacketToSTM32("@MOTOR:OFF");
-    server.send(200, "text/plain", "Motor turned OFF");
+    ws_sendPacketToSTM32("@MANUAL:OFF");
+    server.send(200, "text/plain", "Manual Mode: Motor turned OFF");
   });
+
 
   // COUNTDOWN
-  server.on("/countdown", HTTP_GET, []() {
-    server.send(200, "text/html", countdownModeHtml);
-  });
-  server.on("/start_countdown", HTTP_GET, []() {
-    if (!server.hasArg("duration") || !server.hasArg("mode")) {
-      server.send(400, "text/plain", "Missing duration or mode");
-      return;
-    }
-    int durationMin = server.arg("duration").toInt();
-    String mode = server.arg("mode"); // "on" or "off"
+  // COUNTDOWN PAGE
+server.on("/countdown", HTTP_GET, []() {
+  server.send(200, "text/html", countdownModeHtml);
+});
 
-    g_countdownEnd      = millis() + (unsigned long)durationMin * 60UL * 1000UL;
-    g_countdownActive   = true;
+// START COUNTDOWN LOGIC
+server.on("/start_countdown", HTTP_GET, []() {
+  if (!server.hasArg("duration")) {
+    server.send(400, "text/plain", "Missing duration");
+    return;
+  }
 
-    if (mode == "on") {
-      ws_setMotor(true);
-      g_countdownFinalMotor = false;
-      ws_sendPacketToSTM32("@COUNTDOWN:ON:" + String(durationMin));
-      server.send(200, "text/plain", "Motor ON for " + String(durationMin) + " min, then OFF");
-    } else {
-      ws_setMotor(false);
-      g_countdownFinalMotor = true;
-      ws_sendPacketToSTM32("@COUNTDOWN:OFF:" + String(durationMin));
-      server.send(200, "text/plain", "Motor OFF for " + String(durationMin) + " min, then ON");
-    }
-  });
+  int durationMin = server.arg("duration").toInt();
+  if (durationMin <= 0) {
+    server.send(400, "text/plain", "Invalid duration");
+    return;
+  }
+
+  // Immediately turn motor ON when countdown starts
+  ws_setMotor(true);
+  g_countdownEnd = millis() + (unsigned long)durationMin * 60UL * 1000UL;
+  g_countdownActive = true;
+  g_countdownFinalMotor = true;  // OFF at end
+
+  ws_sendPacketToSTM32("@COUNTDOWN:ON:" + String(durationMin));
+
+  String response = "⏱ Motor turned ON instantly for " + String(durationMin) +
+                    " minute(s). It will turn OFF automatically after countdown.";
+  server.send(200, "text/plain", response);
+});
+
+
 
   // TIMER
   server.on("/timer", HTTP_GET, []() {
@@ -242,7 +268,7 @@ void start_webserver() {
     String resp = "Timer settings received:\n";
 
     for (int i = 1; i <= 5; i++) {
-      String on  = server.arg("on"  + String(i));
+      String on = server.arg("on" + String(i));
       String off = server.arg("off" + String(i));
       if (!on.length())
         on = server.arg("onTime" + String(i));
@@ -251,7 +277,7 @@ void start_webserver() {
 
       if (on.length() && off.length()) {
         any = true;
-        g_timerOn[i - 1]  = on;
+        g_timerOn[i - 1] = on;
         g_timerOff[i - 1] = off;
         ws_sendPacketToSTM32("@TIMER:SET:" + String(i) + ":" + on + ":" + off);
         delay(3);
@@ -274,9 +300,9 @@ void start_webserver() {
     server.send(200, "text/html", searchModeHtml);
   });
   server.on("/search_submit", HTTP_GET, []() {
-    String gap     = server.arg("gap");
-    String dry     = server.arg("dryrun");
-    String onTime  = server.arg("onTime");
+    String gap = server.arg("gap");
+    String dry = server.arg("dryrun");
+    String onTime = server.arg("onTime");
     String offTime = server.arg("offTime");
 
     String days;
@@ -287,14 +313,13 @@ void start_webserver() {
       }
     }
 
-    g_searchGap      = gap;
-    g_searchDry      = dry;
-    g_searchOnTime   = onTime;
-    g_searchOffTime  = offTime;
-    g_searchDays     = days;
+    g_searchGap = gap;
+    g_searchDry = dry;
+    g_searchOnTime = onTime;
+    g_searchOffTime = offTime;
+    g_searchDays = days;
 
-    ws_sendPacketToSTM32("@SEARCH:SET:" + gap + ":" + dry + ":" +
-                         onTime + ":" + offTime + ":" + days);
+    ws_sendPacketToSTM32("@SEARCH:SET:" + gap + ":" + dry + ":" + onTime + ":" + offTime + ":" + days);
 
     String resp = "Search settings saved:\n";
     resp += "Gap: " + gap + "\n";
@@ -310,9 +335,9 @@ void start_webserver() {
     server.send(200, "text/html", twistModeHtml);
   });
   server.on("/twist_submit", HTTP_GET, []() {
-    g_twistOnDur   = server.arg("onDuration");
-    g_twistOffDur  = server.arg("offDuration");
-    g_twistOnTime  = server.arg("onTime");
+    g_twistOnDur = server.arg("onDuration");
+    g_twistOffDur = server.arg("offDuration");
+    g_twistOnTime = server.arg("onTime");
     g_twistOffTime = server.arg("offTime");
 
     String days;
@@ -324,8 +349,7 @@ void start_webserver() {
     }
     g_twistDays = days;
 
-    ws_sendPacketToSTM32("@TWIST:SET:" + g_twistOnDur + ":" + g_twistOffDur + ":" +
-                         g_twistOnTime + ":" + g_twistOffTime + ":" + g_twistDays);
+    ws_sendPacketToSTM32("@TWIST:SET:" + g_twistOnDur + ":" + g_twistOffDur + ":" + g_twistOnTime + ":" + g_twistOffTime + ":" + g_twistDays);
     server.send(200, "text/plain", "Twist settings saved");
   });
 
@@ -349,14 +373,18 @@ void start_webserver() {
   server.on("/status", HTTP_GET, []() {
     if (g_waterLevel <= 0) ws_updateSimulatedWaterLevel();
     server.send(200, "application/json",
-        "{\"level\":" + String(g_waterLevel) + "}");
+                "{\"level\":" + String(g_waterLevel) + "}");
   });
 
   // DEBUG STATE JSON
   server.on("/state.json", HTTP_GET, []() {
     String json = "{";
-    json += "\"motor\":"; json += (g_motorState ? "true" : "false"); json += ",";
-    json += "\"level\":"; json += g_waterLevel; json += ",";
+    json += "\"motor\":";
+    json += (g_motorState ? "true" : "false");
+    json += ",";
+    json += "\"level\":";
+    json += g_waterLevel;
+    json += ",";
     json += "\"search_gap\":\"" + g_searchGap + "\",";
     json += "\"search_dry\":\"" + g_searchDry + "\",";
     json += "\"search_onTime\":\"" + g_searchOnTime + "\",";
@@ -382,8 +410,7 @@ static void ws_handleCountdownLogic() {
   if (millis() > g_countdownEnd) {
     g_countdownActive = false;
     ws_setMotor(g_countdownFinalMotor);
-    ws_sendPacketToSTM32(g_countdownFinalMotor ?
-                         "@COUNTDOWN:DONE:ON" : "@COUNTDOWN:DONE:OFF");
+    ws_sendPacketToSTM32(g_countdownFinalMotor ? "@COUNTDOWN:DONE:ON" : "@COUNTDOWN:DONE:OFF");
   }
 }
 
