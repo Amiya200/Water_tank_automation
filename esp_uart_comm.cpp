@@ -1,4 +1,6 @@
-// esp_uart_comm.cpp  (for ESP-01 / ESP8266)
+// esp_uart_comm.cpp  (Improved)
+// Handles stable UART bridge between ESP8266 <-> STM32 without junk bytes
+
 #include "esp_uart_comm.h"
 #include <string.h>
 
@@ -14,64 +16,101 @@ static int  s_rxBufferIndex = 0;
 #endif
 
 void esp_uart_init() {
-  // on ESP-01, Serial is also the programming port
   Serial.begin(ESP_UART_BAUD_RATE);
   Serial.setTimeout(10);
-
-  // clear buffer
   memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
   s_rxBufferIndex = 0;
-
-  DBG_PRINTLN("ESP8266 UART Comm: Initialized");
+  DBG_PRINTLN("UART Init OK");
 }
 
+/**
+ * Clean packet send — sends @CMD# exactly (no CRLF)
+ */
 void esp_uart_send(const char *message) {
-  // Send to STM32 (or whatever MCU) on the only UART
-  Serial.print(message);
-  Serial.write(ESP_UART_DELIMITER);
-  Serial.print("\r\n");  // ✅ add newline after every complete command
-  DBG_PRINT("ESP8266 -> STM32: %s%c\n", message, ESP_UART_DELIMITER);
+  if (!message || !*message) return;
+
+  // Ensure proper format
+  String pkt = message;
+  pkt.trim();
+
+  // Add missing prefix/suffix if needed
+  if (!pkt.startsWith("@")) pkt = "@" + pkt;
+  if (!pkt.endsWith("#")) pkt += "#";
+
+  // Send clean packet
+  Serial.write(pkt.c_str(), pkt.length());
+  Serial.flush();  // Ensure UART TX buffer fully sent
+
+  #if ESP_UART_ENABLE_DEBUG
+    Serial.print("\n→ SENT to STM32: ");
+    Serial.println(pkt);
+  #endif
 }
 
+/**
+ * Receive a packet terminated by '#'
+ * Returns true when a full packet is received
+ */
 bool esp_uart_receive(char *buffer, size_t bufferSize) {
   bool packetReceived = false;
 
   while (Serial.available()) {
     char incomingByte = Serial.read();
 
-    // prevent overflow
+    // Skip non-printable garbage
+    if (incomingByte < 32 && incomingByte != '@' && incomingByte != '#')
+      continue;
+
     if (s_rxBufferIndex < (ESP_UART_RX_BUFFER_SIZE - 1)) {
       s_rxBuffer[s_rxBufferIndex++] = incomingByte;
 
-      if (incomingByte == ESP_UART_DELIMITER) {
+      // Complete packet
+      if (incomingByte == '#') {
         s_rxBuffer[s_rxBufferIndex] = '\0';
         packetReceived = true;
         break;
       }
     } else {
-      DBG_PRINTLN("ESP8266 UART: RX overflow, discarding");
+      // Overflow protection
       s_rxBufferIndex = 0;
       memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
+      DBG_PRINTLN("UART RX overflow -> cleared");
     }
   }
 
   if (packetReceived) {
-    size_t len = strlen(s_rxBuffer);
-    if (len < bufferSize) {
-      strncpy(buffer, s_rxBuffer, bufferSize - 1);
-      buffer[bufferSize - 1] = '\0';
-      DBG_PRINT("STM32 -> ESP8266: %s\n", buffer);
-    } else {
-      DBG_PRINTLN("ESP8266 UART: user buffer too small");
-      packetReceived = false;
+    // Validate format: must start with '@' and end with '#'
+    if (s_rxBuffer[0] != '@') {
+      DBG_PRINTLN("⚠️ Invalid packet prefix, discarded");
+      memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
+      s_rxBufferIndex = 0;
+      return false;
     }
+
+    size_t len = strlen(s_rxBuffer);
+    if (len >= bufferSize) {
+      DBG_PRINTLN("⚠️ Buffer too small, discarded");
+      memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
+      s_rxBufferIndex = 0;
+      return false;
+    }
+
+    strncpy(buffer, s_rxBuffer, bufferSize - 1);
+    buffer[bufferSize - 1] = '\0';
+
+    #if ESP_UART_ENABLE_DEBUG
+      Serial.print("← RX from STM32: ");
+      Serial.println(buffer);
+    #endif
 
     memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
     s_rxBufferIndex = 0;
+    return true;
   }
 
-  return packetReceived;
+  return false;
 }
+
 
 void esp_uart_processCommand(const char *command) {
   // Handle all known UART packets from STM32
