@@ -1,6 +1,3 @@
-// esp_uart_comm.cpp  (Improved)
-// Handles stable UART bridge between ESP8266 <-> STM32 without junk bytes
-
 #include "esp_uart_comm.h"
 #include <string.h>
 
@@ -15,145 +12,110 @@ static int  s_rxBufferIndex = 0;
   #define DBG_PRINTLN(...)
 #endif
 
+static unsigned long s_lastStatusRequest = 0;
+static const unsigned long STATUS_INTERVAL_MS = 5UL * 60UL * 1000UL; // 5 minutes
+
+// ===== INIT =====
 void esp_uart_init() {
   Serial.begin(ESP_UART_BAUD_RATE);
   Serial.setTimeout(10);
   memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
   s_rxBufferIndex = 0;
+  s_lastStatusRequest = millis();
   DBG_PRINTLN("UART Init OK");
 }
 
-/**
- * Clean packet send — sends @CMD# exactly (no CRLF)
- */
+// ===== SEND =====
 void esp_uart_send(const char *message) {
   if (!message || !*message) return;
-
-  // Ensure proper format
   String pkt = message;
   pkt.trim();
-
-  // Add missing prefix/suffix if needed
   if (!pkt.startsWith("@")) pkt = "@" + pkt;
   if (!pkt.endsWith("#")) pkt += "#";
-
-  // Send clean packet
   Serial.write(pkt.c_str(), pkt.length());
-  Serial.flush();  // Ensure UART TX buffer fully sent
-
+  Serial.flush();
   #if ESP_UART_ENABLE_DEBUG
-    Serial.print("\n→ SENT to STM32: ");
-    Serial.println(pkt);
+    Serial.print("→ SENT: "); Serial.println(pkt);
   #endif
 }
 
-/**
- * Receive a packet terminated by '#'
- * Returns true when a full packet is received
- */
+// ===== RECEIVE =====
 bool esp_uart_receive(char *buffer, size_t bufferSize) {
   bool packetReceived = false;
-
   while (Serial.available()) {
-    char incomingByte = Serial.read();
-
-    // Skip non-printable garbage
-    if (incomingByte < 32 && incomingByte != '@' && incomingByte != '#')
-      continue;
-
-    if (s_rxBufferIndex < (ESP_UART_RX_BUFFER_SIZE - 1)) {
-      s_rxBuffer[s_rxBufferIndex++] = incomingByte;
-
-      // Complete packet
-      if (incomingByte == '#') {
+    char c = Serial.read();
+    if (c < 32 && c != '@' && c != '#') continue;
+    if (s_rxBufferIndex < ESP_UART_RX_BUFFER_SIZE - 1) {
+      s_rxBuffer[s_rxBufferIndex++] = c;
+      if (c == '#') {
         s_rxBuffer[s_rxBufferIndex] = '\0';
         packetReceived = true;
         break;
       }
     } else {
-      // Overflow protection
       s_rxBufferIndex = 0;
       memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
-      DBG_PRINTLN("UART RX overflow -> cleared");
+      DBG_PRINTLN("RX overflow cleared");
     }
   }
 
   if (packetReceived) {
-    // Validate format: must start with '@' and end with '#'
-    if (s_rxBuffer[0] != '@') {
-      DBG_PRINTLN("⚠️ Invalid packet prefix, discarded");
-      memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
-      s_rxBufferIndex = 0;
-      return false;
-    }
-
-    size_t len = strlen(s_rxBuffer);
-    if (len >= bufferSize) {
-      DBG_PRINTLN("⚠️ Buffer too small, discarded");
-      memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
-      s_rxBufferIndex = 0;
-      return false;
-    }
-
+    if (s_rxBuffer[0] != '@') return false;
+    if (strlen(s_rxBuffer) >= bufferSize) return false;
     strncpy(buffer, s_rxBuffer, bufferSize - 1);
     buffer[bufferSize - 1] = '\0';
-
-    #if ESP_UART_ENABLE_DEBUG
-      Serial.print("← RX from STM32: ");
-      Serial.println(buffer);
-    #endif
-
     memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
     s_rxBufferIndex = 0;
     return true;
   }
-
   return false;
 }
 
+// ===== AUTO STATUS REQUEST =====
+void esp_uart_requestStatus() {
+  esp_uart_send("@REQ:STATUS#");
+  s_lastStatusRequest = millis();
+  DBG_PRINTLN("📡 Requested @REQ:STATUS#");
+}
 
-void esp_uart_processCommand(const char *command) {
-  // Handle all known UART packets from STM32
+void esp_uart_autoStatusRequest() {
+  unsigned long now = millis();
+  if (now - s_lastStatusRequest >= STATUS_INTERVAL_MS)
+    esp_uart_requestStatus();
+}
 
-  if (strstr(command, "@10W#")) {
-    DBG_PRINTLN("Water Level: 10%");
-  } else if (strstr(command, "@30W#")) {
-    DBG_PRINTLN("Water Level: 30%");
-  } else if (strstr(command, "@70W#")) {
-    DBG_PRINTLN("Water Level: 70%");
-  } else if (strstr(command, "@1:W#")) {
-    DBG_PRINTLN("Water Level: 100%");
-  } 
-  
-  else if (strstr(command, "@DRY#")) {
-    DBG_PRINTLN("⚠️ DRY RUN detected!");
-  } 
+// ===== COMMAND PARSER =====
+void esp_uart_processCommand(const char *cmd) {
+  if (!cmd) return;
 
-  // ==== MANUAL MODE ====
-  else if (strstr(command, "@MANUAL:ON#")) {
-    DBG_PRINTLN("Manual Mode → Motor ON");
-  } else if (strstr(command, "@MANUAL:OFF#")) {
-    DBG_PRINTLN("Manual Mode → Motor OFF");
+  if (strstr(cmd, "@STATUS:")) {
+    // Example: @STATUS:MOTOR:ON:LEVEL:3:MODE:TIMER#
+    String pkt = String(cmd);
+    pkt.replace("@STATUS:", "");
+    pkt.replace("#", "");
+
+    int motorIdx = pkt.indexOf("MOTOR:");
+    int levelIdx = pkt.indexOf(":LEVEL:");
+    int modeIdx  = pkt.indexOf(":MODE:");
+
+    String motor = pkt.substring(motorIdx + 6, levelIdx);
+    String level = pkt.substring(levelIdx + 7, modeIdx);
+    String mode  = pkt.substring(modeIdx + 6);
+
+    Serial.printf("📶 STATUS → Motor:%s | Level:%s | Mode:%s\n",
+                  motor.c_str(), level.c_str(), mode.c_str());
+    return;
   }
 
-  // ==== COUNTDOWN MODE ====
-  else if (strstr(command, "@COUNTDOWN:ON#")) {
-    DBG_PRINTLN("Countdown started → Motor ON immediately");
-  } else if (strstr(command, "@COUNTDOWN:DONE:OFF#")) {
-    DBG_PRINTLN("Countdown finished → Motor turned OFF");
+  else if (strstr(cmd, "@ACK:")) {
+    DBG_PRINTLN(cmd);
   }
 
-  // ==== OTHER MODES ====
-  else if (strstr(command, "@TIMER#")) {
-    DBG_PRINTLN("Timer mode update received");
-  } else if (strstr(command, "@SEARCH#")) {
-    DBG_PRINTLN("Search mode update received");
-  } else if (strstr(command, "@TWIST#")) {
-    DBG_PRINTLN("Twist mode update received");
+  else if (strstr(cmd, "@ERR:")) {
+    DBG_PRINTLN(cmd);
   }
 
-  // Unrecognized packets
   else {
-    DBG_PRINT("Unknown UART Packet: %s\n", command);
+    DBG_PRINT("Unknown packet: %s\n", cmd);
   }
 }
