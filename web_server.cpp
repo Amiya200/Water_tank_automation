@@ -1,6 +1,7 @@
 // web_server.cpp
 // ESP8266 <-> STM32 Web UART Bridge for Water Tank Controller
 // Updated: live water level, motor, and mode updates + dynamic status intervals
+// Added: level mapping (1→20, 2→40, 3→60, 4→80, 5→100)
 
 #include <Arduino.h>
 
@@ -85,15 +86,26 @@ static void ws_applyUartPacketToWeb(const char *raw) {
   if (pkt.endsWith("#")) pkt.remove(pkt.length() - 1);
 
   if (pkt.startsWith("STATUS:")) {
-    // Example: @STATUS:MOTOR:ON:LEVEL:45:MODE:MANUAL#
+    // Example: @STATUS:MOTOR:ON:LEVEL:3:MODE:MANUAL#
     pkt.replace("STATUS:", "");
     int m1 = pkt.indexOf("MOTOR:");
     int l1 = pkt.indexOf(":LEVEL:");
     int mo1 = pkt.indexOf(":MODE:");
     if (m1 != -1 && l1 != -1 && mo1 != -1) {
       g_motorStatus = pkt.substring(m1 + 6, l1);
-      g_liveLevel   = pkt.substring(l1 + 7, mo1).toInt();
-      g_liveMode    = pkt.substring(mo1 + 6);
+
+      // ---- NEW MAPPING ----
+      int levelCode = pkt.substring(l1 + 7, mo1).toInt();
+      switch (levelCode) {
+        case 1:  g_liveLevel = 20;  break;
+        case 2:  g_liveLevel = 40;  break;
+        case 3:  g_liveLevel = 60;  break;
+        case 4:  g_liveLevel = 80;  break;
+        case 5:  g_liveLevel = 100; break;
+        default: g_liveLevel = 0;   break;
+      }
+
+      g_liveMode = pkt.substring(mo1 + 6);
       Serial.printf("📶 STATUS → Motor:%s | Level:%d | Mode:%s\n",
                     g_motorStatus.c_str(), g_liveLevel, g_liveMode.c_str());
     }
