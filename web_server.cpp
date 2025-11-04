@@ -1,6 +1,6 @@
 // web_server.cpp
 // ESP8266 <-> STM32 Web UART Bridge for Water Tank Controller
-// Updated: auto @REQ:STATUS# on any button & every 5 min
+// Updated: live water level, motor, and mode updates + dynamic status intervals
 
 #include <Arduino.h>
 
@@ -23,35 +23,35 @@
 
 extern const char *htmlContent;
 
+// ===== GLOBAL STATE =====
+String g_motorStatus = "OFF";
+int    g_liveLevel   = 0;
+String g_liveMode    = "UNKNOWN";
+
 #ifndef MOTOR_PIN
   #define MOTOR_PIN 2
 #endif
 
-// ===== STATE =====
+// ===== INTERNAL STATE =====
 static bool g_motorState = false;
-static int  g_waterLevel = 70;
-
+static int  g_waterLevel = 0;
 static bool g_countdownActive = false;
 static unsigned long g_countdownEnd = 0;
 static bool g_countdownFinalMotor = false;
-
-static String g_timerOn[5];
-static String g_timerOff[5];
 
 static String g_searchGap;
 static String g_searchDry;
 static String g_twistOnDur;
 static String g_twistOffDur;
 
-// ===== AUTO STATUS TIMER =====
 static unsigned long g_lastStatusReq = 0;
-static const unsigned long STATUS_INTERVAL_MS = 5UL * 60UL * 1000UL;  // 5 min
 
 // ===== HELPERS =====
 static void ws_setMotor(bool on) {
   g_motorState = on;
   pinMode(MOTOR_PIN, OUTPUT);
   digitalWrite(MOTOR_PIN, on ? HIGH : LOW);
+  g_motorStatus = on ? "ON" : "OFF";
 }
 
 static void ws_sendPacketToSTM32(const String &payload) {
@@ -61,23 +61,46 @@ static void ws_sendPacketToSTM32(const String &payload) {
 }
 
 static void ws_requestStatus() {
-  ws_sendPacketToSTM32("@REQ:STATUS#");
-  Serial.println("📡 Requested status from STM32");
+  ws_sendPacketToSTM32("@STATUS#");
   g_lastStatusReq = millis();
+  // Serial.println("📡 Requested @STATUS#");
 }
 
+// dynamic 5 s / 5 min update
 static void ws_autoStatusRefresh() {
   unsigned long now = millis();
-  if (now - g_lastStatusReq >= STATUS_INTERVAL_MS) ws_requestStatus();
+  unsigned long interval = (g_motorStatus == "ON") ? 5000UL : 5UL * 60UL * 1000UL;
+  if (now - g_lastStatusReq >= interval) {
+    ws_requestStatus();
+    g_lastStatusReq = now;
+  }
 }
 
+// apply STM32 packet to web globals
 static void ws_applyUartPacketToWeb(const char *raw) {
   if (!raw || !raw[0]) return;
   String pkt = String(raw);
   pkt.trim();
-  if (pkt.endsWith("#")) pkt.remove(pkt.length() - 1);
   if (pkt.startsWith("@")) pkt.remove(0, 1);
+  if (pkt.endsWith("#")) pkt.remove(pkt.length() - 1);
 
+  if (pkt.startsWith("STATUS:")) {
+    // Example: @STATUS:MOTOR:ON:LEVEL:45:MODE:MANUAL#
+    pkt.replace("STATUS:", "");
+    int m1 = pkt.indexOf("MOTOR:");
+    int l1 = pkt.indexOf(":LEVEL:");
+    int mo1 = pkt.indexOf(":MODE:");
+    if (m1 != -1 && l1 != -1 && mo1 != -1) {
+      g_motorStatus = pkt.substring(m1 + 6, l1);
+      g_liveLevel   = pkt.substring(l1 + 7, mo1).toInt();
+      g_liveMode    = pkt.substring(mo1 + 6);
+      Serial.printf("📶 STATUS → Motor:%s | Level:%d | Mode:%s\n",
+                    g_motorStatus.c_str(), g_liveLevel, g_liveMode.c_str());
+    }
+    return;
+  }
+
+  // legacy compatibility
   if (pkt == "MOTOR_ON")  { g_motorState = true; return; }
   if (pkt == "MOTOR_OFF") { g_motorState = false; return; }
   if (pkt == "10W") { g_waterLevel = 10; return; }
@@ -86,8 +109,8 @@ static void ws_applyUartPacketToWeb(const char *raw) {
   if (pkt == "1:W") { g_waterLevel = 100; return; }
 
   int p1 = pkt.indexOf(':');
-  String cmd = (p1 == -1) ? pkt : pkt.substring(0, p1);
-  String rest = (p1 == -1) ? "" : pkt.substring(p1 + 1);
+  String cmd  = (p1 == -1) ? pkt : pkt.substring(0, p1);
+  String rest = (p1 == -1) ? ""  : pkt.substring(p1 + 1);
   if (cmd == "MOTOR") {
     if (rest == "ON") ws_setMotor(true);
     if (rest == "OFF") ws_setMotor(false);
@@ -100,10 +123,20 @@ void start_webserver() {
   digitalWrite(MOTOR_PIN, LOW);
   g_lastStatusReq = millis();
 
-  // DASHBOARD
+  // --- DASHBOARD ---
   server.on("/", HTTP_GET, []() { server.send(200, "text/html", htmlContent); });
 
-  // === MANUAL MODE ===
+  // --- LIVE STATUS JSON ---
+  server.on("/status", HTTP_GET, []() {
+    String json = "{";
+    json += "\"motor\":\"" + g_motorStatus + "\",";
+    json += "\"level\":" + String(g_liveLevel) + ",";
+    json += "\"mode\":\"" + g_liveMode + "\"";
+    json += "}";
+    server.send(200, "application/json", json);
+  });
+
+  // --- MANUAL MODE ---
   server.on("/manual", HTTP_GET, []() { server.send(200, "text/html", manualModeHtml); });
   server.on("/manual/on", HTTP_GET, []() {
     ws_setMotor(true);
@@ -118,7 +151,7 @@ void start_webserver() {
     server.send(200, "text/plain", "Motor OFF");
   });
 
-  // === COUNTDOWN MODE ===
+  // --- COUNTDOWN MODE ---
   server.on("/countdown", HTTP_GET, []() { server.send(200, "text/html", countdownModeHtml); });
   server.on("/start_countdown", HTTP_GET, []() {
     if (!server.hasArg("duration")) { server.send(400, "text/plain", "Missing duration"); return; }
@@ -140,7 +173,7 @@ void start_webserver() {
     server.send(200, "text/plain", "Countdown stopped.");
   });
 
-  // === TIMER MODE ===
+  // --- TIMER MODE ---
   server.on("/timer", HTTP_GET, []() { server.send(200, "text/html", timerModeHtml); });
   server.on("/timer/set", HTTP_GET, []() {
     bool any = false;
@@ -168,7 +201,7 @@ void start_webserver() {
     server.send(200, "text/plain", "Timer stopped.");
   });
 
-  // === SEARCH MODE ===
+  // --- SEARCH MODE ---
   server.on("/search", HTTP_GET, []() { server.send(200, "text/html", searchModeHtml); });
   server.on("/search_submit", HTTP_GET, []() {
     g_searchGap = server.arg("gap");
@@ -183,7 +216,7 @@ void start_webserver() {
     server.send(200, "text/plain", "Search stopped.");
   });
 
-  // === TWIST MODE ===
+  // --- TWIST MODE ---
   server.on("/twist", HTTP_GET, []() { server.send(200, "text/html", twistModeHtml); });
   server.on("/twist_submit", HTTP_GET, []() {
     g_twistOnDur  = server.arg("onDuration");
@@ -198,7 +231,7 @@ void start_webserver() {
     server.send(200, "text/plain", "Twist stopped.");
   });
 
-  // === SEMI AUTO ===
+  // --- SEMI AUTO MODE ---
   server.on("/semi", HTTP_GET, []() { server.send(200, "text/html", semiAutoModeHtml); });
   server.on("/semi_toggle", HTTP_GET, []() {
     g_motorState = !g_motorState;
@@ -208,21 +241,11 @@ void start_webserver() {
     server.send(200, "text/plain", g_motorState ? "ON" : "OFF");
   });
 
-  // === STATUS / PING ===
-  server.on("/status_request", HTTP_GET, []() {
-    ws_requestStatus();
-    server.send(200, "text/plain", "Status requested.");
-  });
-  server.on("/ping", HTTP_GET, []() {
-    ws_sendPacketToSTM32("@PING#");
-    server.send(200, "text/plain", "Ping sent.");
-  });
-
   server.begin();
-  Serial.println("✅ HTTP server started");
+  Serial.println("✅ Web server started");
 }
 
-// ===== LOOP =====
+// ===== LOOP HANDLER =====
 static void ws_handleCountdownLogic() {
   if (!g_countdownActive) return;
   if (g_waterLevel >= 100 || millis() > g_countdownEnd) {
@@ -230,7 +253,7 @@ static void ws_handleCountdownLogic() {
     ws_setMotor(false);
     ws_sendPacketToSTM32("@COUNTDOWN:DONE:OFF#");
     ws_requestStatus();
-    Serial.println("⏱ Countdown finished or full tank → Motor OFF");
+    Serial.println("Countdown done → Motor OFF");
   }
 }
 
@@ -241,7 +264,7 @@ void handleClient() {
 
   char rxBuf[128];
   if (esp_uart_receive(rxBuf, sizeof(rxBuf))) {
-    Serial.print("UART RX -> ");
+    Serial.print("UART RX → ");
     Serial.println(rxBuf);
     ws_applyUartPacketToWeb(rxBuf);
   }

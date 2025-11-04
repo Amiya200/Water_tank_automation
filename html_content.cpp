@@ -124,12 +124,12 @@ const char* htmlContent = R"rawliteral(
 
 
   <div class="tank-level">
-    <div id="fill" class="tank-fill" style="height: 70%;">70%</div>
+    <div id="fill" class="tank-fill" style="height: 0%;">0%</div>
   </div>
 
-  <div class="label" id="availabilityText">Ground Water Not Available</div>
+  <div class="label" id="availabilityText">Checking water level...</div>
 
-  <div class="status" id="motorStatus">Motor Status: Checking...</div>
+  <div class="status" id="motorStatus">Motor: Unknown | Mode: --</div>
 
   <h2>Control Modes</h2>
   <div class="button-grid">
@@ -144,55 +144,41 @@ const char* htmlContent = R"rawliteral(
   <a href="/settings" class="settings">⚙️ Settings</a>
 
   <script>
-    let motorIsOn = false;
+    async function updateDashboard() {
+      try {
+        const res = await fetch('/status');
+        const data = await res.json();
 
-    function updateTankLevel() {
-      fetch('/status')
-        .then(res => res.json())
-        .then(data => {
-          const fill = document.getElementById('fill');
-          fill.style.height = data.level + '%';
-          fill.innerText = data.level + '%';
-        })
-        .catch(() => {});
+        // Update tank fill
+        const fill = document.getElementById('fill');
+        fill.style.height = data.level + '%';
+        fill.innerText = data.level + '%';
+
+        // Update status
+        const motorStatus = document.getElementById('motorStatus');
+        motorStatus.textContent = "Motor: " + data.motor + " | Mode: " + data.mode;
+        motorStatus.className = "status " + (data.motor === "ON" ? "on" : "off");
+
+        // Update availability text
+        const availText = document.getElementById('availabilityText');
+        if (data.level > 10) {
+          availText.textContent = "Ground Water Available";
+          availText.style.background = "#1b5e20";
+          availText.style.boxShadow = "0 0 12px rgba(27,94,32,0.7)";
+        } else {
+          availText.textContent = "Ground Water Not Available";
+          availText.style.background = "#b71c1c";
+          availText.style.boxShadow = "0 0 12px rgba(183,28,28,0.6)";
+        }
+
+      } catch (e) {
+        document.getElementById('motorStatus').textContent = "Status: Offline";
+      }
     }
 
-    function updateMotorStatus() {
-      fetch('/motor_status')
-        .then(res => res.text())
-        .then(status => {
-          motorIsOn = (status.trim() === "ON");
-          const motorStatus = document.getElementById('motorStatus');
-          const availText = document.getElementById('availabilityText');
-
-          if (motorIsOn) {
-            motorStatus.textContent = "Motor Status: ON";
-            motorStatus.className = "status on";
-            availText.textContent = "Ground Water Available";
-            availText.style.background = "#1b5e20";
-            availText.style.boxShadow = "0 0 12px rgba(27,94,32,0.7)";
-          } else {
-            motorStatus.textContent = "Motor Status: OFF";
-            motorStatus.className = "status off";
-            availText.textContent = "Ground Water Not Available";
-            availText.style.background = "#b71c1c";
-            availText.style.boxShadow = "0 0 12px rgba(183,28,28,0.6)";
-          }
-        })
-        .catch(() => {
-          document.getElementById('motorStatus').textContent = "Status: Unknown";
-        });
-    }
-
-    setInterval(() => {
-      updateTankLevel();
-      updateMotorStatus();
-    }, 5000);
-
-    window.onload = () => {
-      updateTankLevel();
-      updateMotorStatus();
-    };
+    // Refresh every 3 seconds
+    setInterval(updateDashboard, 3000);
+    window.onload = updateDashboard;
   </script>
 </body>
 </html>

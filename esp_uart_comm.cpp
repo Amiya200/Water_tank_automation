@@ -1,5 +1,11 @@
 #include "esp_uart_comm.h"
 #include <string.h>
+#include <Arduino.h>
+
+// ===== GLOBAL STATE =====
+extern String g_motorStatus;
+extern int    g_waterLevel;
+extern String g_mode;
 
 static char s_rxBuffer[ESP_UART_RX_BUFFER_SIZE];
 static int  s_rxBufferIndex = 0;
@@ -13,7 +19,6 @@ static int  s_rxBufferIndex = 0;
 #endif
 
 static unsigned long s_lastStatusRequest = 0;
-static const unsigned long STATUS_INTERVAL_MS = 5UL * 60UL * 1000UL; // 5 minutes
 
 // ===== INIT =====
 void esp_uart_init() {
@@ -71,25 +76,33 @@ bool esp_uart_receive(char *buffer, size_t bufferSize) {
   return false;
 }
 
-// ===== AUTO STATUS REQUEST =====
+// ===== STATUS REQUEST =====
 void esp_uart_requestStatus() {
-  esp_uart_send("@REQ:STATUS#");
+  esp_uart_send("@STATUS#");
   s_lastStatusRequest = millis();
-  DBG_PRINTLN("📡 Requested @REQ:STATUS#");
+  DBG_PRINTLN("📡 Requested @STATUS#");
 }
 
+// ===== AUTO STATUS REQUEST =====
 void esp_uart_autoStatusRequest() {
   unsigned long now = millis();
-  if (now - s_lastStatusRequest >= STATUS_INTERVAL_MS)
+
+  // Dynamic interval: 5s if motor ON, 5min if OFF
+  unsigned long interval = (g_motorStatus == "ON") ? 5000UL : 5UL * 60UL * 1000UL;
+
+  if (now - s_lastStatusRequest >= interval) {
     esp_uart_requestStatus();
+    s_lastStatusRequest = now;
+    DBG_PRINTLN("Auto status request → " + g_motorStatus);
+  }
 }
 
 // ===== COMMAND PARSER =====
 void esp_uart_processCommand(const char *cmd) {
   if (!cmd) return;
 
+  // Example packet: @STATUS:MOTOR:ON:LEVEL:80:MODE:SEMI_AUTO#
   if (strstr(cmd, "@STATUS:")) {
-    // Example: @STATUS:MOTOR:ON:LEVEL:3:MODE:TIMER#
     String pkt = String(cmd);
     pkt.replace("@STATUS:", "");
     pkt.replace("#", "");
@@ -98,24 +111,18 @@ void esp_uart_processCommand(const char *cmd) {
     int levelIdx = pkt.indexOf(":LEVEL:");
     int modeIdx  = pkt.indexOf(":MODE:");
 
-    String motor = pkt.substring(motorIdx + 6, levelIdx);
-    String level = pkt.substring(levelIdx + 7, modeIdx);
-    String mode  = pkt.substring(modeIdx + 6);
+    if (motorIdx == -1 || levelIdx == -1 || modeIdx == -1) return;
 
-    Serial.printf("📶 STATUS → Motor:%s | Level:%s | Mode:%s\n",
-                  motor.c_str(), level.c_str(), mode.c_str());
+    g_motorStatus = pkt.substring(motorIdx + 6, levelIdx);
+    g_waterLevel  = pkt.substring(levelIdx + 7, modeIdx).toInt();
+    g_mode        = pkt.substring(modeIdx + 6);
+
+    Serial.printf("📶 STATUS → Motor:%s | Level:%d | Mode:%s\n",
+                  g_motorStatus.c_str(), g_waterLevel, g_mode.c_str());
     return;
   }
 
-  else if (strstr(cmd, "@ACK:")) {
-    DBG_PRINTLN(cmd);
-  }
-
-  else if (strstr(cmd, "@ERR:")) {
-    DBG_PRINTLN(cmd);
-  }
-
-  else {
-    DBG_PRINT("Unknown packet: %s\n", cmd);
-  }
+  else if (strstr(cmd, "@ACK:")) DBG_PRINTLN(cmd);
+  else if (strstr(cmd, "@ERR:")) DBG_PRINTLN(cmd);
+  else DBG_PRINT("Unknown packet: %s\n", cmd);
 }
