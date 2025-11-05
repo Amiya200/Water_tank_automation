@@ -157,7 +157,7 @@ const char* searchModeHtml = R"rawliteral(
       const result = await response.text();
 
       // Build summary display
-      let summary = `✅ Search Mode Settings Saved\n`;
+      let summary = `Search Mode Settings Saved\n`;
       summary += `Testing Gap: ${dataSummary.gap || '-'}\n`;
       summary += `Dry Run Time: ${dataSummary.dryrun || '-'}\n`;
       summary += `ON Time: ${dataSummary.onTime || '-'}\n`;

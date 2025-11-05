@@ -80,7 +80,7 @@ bool esp_uart_receive(char *buffer, size_t bufferSize) {
 void esp_uart_requestStatus() {
   esp_uart_send("@STATUS#");
   s_lastStatusRequest = millis();
-  DBG_PRINTLN("📡 Requested @STATUS#");
+  DBG_PRINTLN("Requested @STATUS#");
 }
 
 // ===== AUTO STATUS REQUEST =====
@@ -88,7 +88,7 @@ void esp_uart_autoStatusRequest() {
   unsigned long now = millis();
 
   // Dynamic interval: 5s if motor ON, 5min if OFF
-  unsigned long interval = (g_motorStatus == "ON") ? 5000UL : 5UL * 60UL * 1000UL;
+  unsigned long interval = (g_motorStatus == "ON") ? 10000UL : 10UL * 60UL * 1000UL;
 
   if (now - s_lastStatusRequest >= interval) {
     esp_uart_requestStatus();

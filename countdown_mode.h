@@ -82,7 +82,7 @@ const char* countdownModeHtml = R"rawliteral(
       <button type="button" id="toggleBtn" class="button" onclick="startSmartCountdown()">Start</button>
     </form>
 
-    <p id="countdownDisplay">Waiting for input...</p>
+    <p id="countdownDisplay">Waiting for input</p>
     <p id="message"></p>
 
     <a href="/"><button class="button back-btn" type="button">Back</button></a>
@@ -130,7 +130,7 @@ const char* countdownModeHtml = R"rawliteral(
         startCountdownDisplay(mode);
         setTimeout(getMotorStatus, 800);
       } catch {
-        document.getElementById("message").textContent = "⚠️ Failed to send to ESP.";
+        document.getElementById("message").textContent = "Failed to send to ESP.";
       }
     }
 
@@ -140,7 +140,7 @@ const char* countdownModeHtml = R"rawliteral(
         if (remaining <= 0) {
           clearInterval(interval);
           document.getElementById("countdownDisplay").textContent =
-            "⏰ Countdown finished! Motor will toggle now.";
+            "Countdown finished! Motor will toggle now.";
           getMotorStatus();
           return;
         }
