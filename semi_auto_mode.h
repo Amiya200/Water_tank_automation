@@ -32,18 +32,12 @@ const char* semiAutoModeHtml = R"rawliteral(
     .button:hover {
       transform: scale(1.05);
     }
-    #status {
-      font-size: 20px;
-      margin-top: 20px;
-    }
   </style>
 </head>
 <body>
   <h1>Semi Auto Control</h1>
 
   <button class="button" id="toggleBtn" onclick="toggleMotor()">Loading...</button>
-
-  <p id="status">Motor Status: <span id="motorState">Loading...</span></p>
 
   <a href="/"><button class="button" style="background-color: #0dcaf0;">Back</button></a>
 
@@ -62,9 +56,6 @@ const char* semiAutoModeHtml = R"rawliteral(
 
     function updateButton(state) {
       const btn = document.getElementById('toggleBtn');
-      const statusText = document.getElementById('motorState');
-
-      statusText.innerText = state;
 
       if (state === "ON") {
         btn.innerText = "Stop Motor";
