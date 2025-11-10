@@ -2,7 +2,7 @@
 #include "wifi_manager.h"
 
 // ===== Access Point Credentials =====
-const char* AP_SSID = "ESP8266_Water_Tank";
+const char* AP_SSID = "Water_Tank";
 const char* AP_PASS = "123456789";
 
 // ===== Optional Static IP for AP =====

@@ -88,6 +88,7 @@ const char* searchModeHtml = R"rawliteral(
 
     .back-button {
       background-color: #0dcaf0;
+      color: #000;
     }
 
     #message {
@@ -130,7 +131,6 @@ const char* searchModeHtml = R"rawliteral(
     </form>
 
     <p id="message"></p>
-
     <a href="/"><button class="button back-button">Back</button></a>
   </div>
 
@@ -140,31 +140,35 @@ const char* searchModeHtml = R"rawliteral(
 
       const form = new FormData(this);
       const params = new URLSearchParams();
-      const dataSummary = {};
 
-      for (const pair of form.entries()) {
-        const [key, value] = pair;
-        if (key === 'days') {
-          if (!dataSummary.days) dataSummary.days = [];
-          dataSummary.days.push(value);
-        } else {
-          dataSummary[key] = value;
-        }
-        params.append(key, value);
+      // Add base fields
+      params.append('gap', form.get('gap'));
+      params.append('dryrun', form.get('dryrun'));
+      params.append('onTime', form.get('onTime'));
+      params.append('offTime', form.get('offTime'));
+
+      // Collect checked days → mon=1&tue=1&...
+      const selectedDays = [];
+      document.querySelectorAll('input[name="days"]:checked').forEach(cb => {
+        selectedDays.push(cb.value);
+        params.append(cb.value, '1');
+      });
+
+      try {
+        const res = await fetch('/search_submit?' + params.toString());
+        const result = await res.text();
+
+        // Display summary
+        let summary = "Search Mode Settings Saved\n";
+        summary += `Testing Gap: ${form.get('gap')}\n`;
+        summary += `Dry Run Time: ${form.get('dryrun')}\n`;
+        summary += `ON Time: ${form.get('onTime')}\n`;
+        summary += `OFF Time: ${form.get('offTime')}\n`;
+        summary += `Days: ${selectedDays.join(', ') || '-'}`;
+        document.getElementById('message').textContent = summary;
+      } catch (err) {
+        document.getElementById('message').textContent = "Failed to send to ESP.";
       }
-
-      const response = await fetch('/search_submit?' + params.toString());
-      const result = await response.text();
-
-      // Build summary display
-      let summary = `Search Mode Settings Saved\n`;
-      summary += `Testing Gap: ${dataSummary.gap || '-'}\n`;
-      summary += `Dry Run Time: ${dataSummary.dryrun || '-'}\n`;
-      summary += `ON Time: ${dataSummary.onTime || '-'}\n`;
-      summary += `OFF Time: ${dataSummary.offTime || '-'}\n`;
-      summary += `Active Days: ${(dataSummary.days || []).join(', ') || '-'}`;
-
-      document.getElementById('message').textContent = summary;
 
       this.reset();
     });

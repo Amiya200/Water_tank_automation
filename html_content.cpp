@@ -141,7 +141,7 @@ const char* htmlContent = R"rawliteral(
     <a href="/manual" class="button manual">Manual Mode</a>
   </div>
 
-  <a href="/settings" class="settings">⚙️ Settings</a>
+  <a href="/settings" class="settings">Settings</a>
 
   <script>
     async function updateDashboard() {

@@ -222,7 +222,7 @@ void start_webserver() {
   });
 
   // === TIMER SET (all slots) ===
-    // === TIMER SET (all slots) ===
+  // === TIMER SET (all slots) ===
   server.on("/timer/set", HTTP_GET, []() {
     String packet = "@TIMER:SET";
     bool any = false;
@@ -245,7 +245,7 @@ void start_webserver() {
     }
 
     if (!any) {
-      server.send(400, "text/plain", "⚠️ No valid ON/OFF slot filled.");
+      server.send(400, "text/plain", "No valid ON/OFF slot filled.");
       return;
     }
 
@@ -266,14 +266,14 @@ void start_webserver() {
 
     ws_requestStatus();
 
-    String responseText = "✅ Timer slots updated successfully!\n\n";
+    String responseText = "Timer slots updated successfully!\n\n";
     responseText += humanSummary;
     // responseText += "\nRaw Packet → " + packet + "\n";
 
-    if (resp.startsWith("@ACK") || resp.indexOf("TIMER_OK") >= 0)
-      responseText += "📩 STM32 ACK: " + resp;
-    else
-      responseText += "ℹ️ No ACK received from STM32";
+    // if (resp.startsWith("@ACK") || resp.indexOf("TIMER_OK") >= 0)
+    //   responseText += "STM32 ACK: " + resp;
+    // else
+    //   responseText += "No ACK received from STM32";
 
     server.send(200, "text/plain", responseText);
   });
@@ -305,34 +305,68 @@ void start_webserver() {
     server.send(200, "text/html", searchModeHtml);
   });
   server.on("/search_submit", HTTP_GET, []() {
-    g_searchGap = server.arg("gap");
-    g_searchDry = server.arg("dryrun");
-    ws_sendPacketToSTM32("@SEARCH:SET:" + g_searchGap + ":" + g_searchDry + "#");
+    String gap = server.arg("gap");
+    String dry = server.arg("dryrun");
+    String onTime = server.arg("onTime");
+    String offTime = server.arg("offTime");
+
+    String days = "";
+    const char *allDays[] = { "sun", "mon", "tue", "wed", "thu", "fri", "sat" };
+    for (auto d : allDays) {
+      if (server.hasArg(d)) {
+        if (days.length() > 0) days += ",";
+        days += d;
+      }
+    }
+
+    if (gap.isEmpty() || dry.isEmpty() || onTime.isEmpty() || offTime.isEmpty()) {
+      server.send(400, "text/plain", "Missing parameters");
+      return;
+    }
+
+    String packet = "@SEARCH:SET:" + gap + ":" + dry + ":" + onTime + ":" + offTime + ":" + days + "#";
+    ws_sendPacketToSTM32(packet);
     ws_requestStatus();
-    server.send(200, "text/plain", "Search updated.");
+
+    server.send(200, "text/plain", "Search settings sent:\n" + packet);
   });
-  server.on("/search_stop", HTTP_GET, []() {
-    ws_sendPacketToSTM32("@SEARCH:STOP#");
-    ws_requestStatus();
-    server.send(200, "text/plain", "Search stopped.");
-  });
+
+
 
   // --- TWIST MODE ---
   server.on("/twist", HTTP_GET, []() {
     server.send(200, "text/html", twistModeHtml);
   });
   server.on("/twist_submit", HTTP_GET, []() {
-    g_twistOnDur = server.arg("onDuration");
-    g_twistOffDur = server.arg("offDuration");
-    ws_sendPacketToSTM32("@TWIST:SET:" + g_twistOnDur + ":" + g_twistOffDur + "#");
+    String onDur = server.arg("onDuration");
+    String offDur = server.arg("offDuration");
+    String onTime = server.arg("onTime");
+    String offTime = server.arg("offTime");
+
+    // Gather selected days from individual params (mon, tue, etc.)
+    String days = "";
+    const char *allDays[] = { "mon", "tue", "wed", "thu", "fri", "sat", "sun" };
+    for (auto d : allDays) {
+      if (server.hasArg(d)) {
+        if (days.length() > 0) days += ",";
+        days += d;
+      }
+    }
+
+    if (onDur.isEmpty() || offDur.isEmpty() || onTime.isEmpty() || offTime.isEmpty()) {
+      server.send(400, "text/plain", "Missing parameters");
+      return;
+    }
+
+    // Final packet with days
+    String packet = "@TWIST:SET:" + onDur + ":" + offDur + ":" + onTime + ":" + offTime + ":" + days + "#";
+    ws_sendPacketToSTM32(packet);
     ws_requestStatus();
-    server.send(200, "text/plain", "Twist set.");
+
+    server.send(200, "text/plain", "Twist settings sent:\n" + packet);
   });
-  server.on("/twist_stop", HTTP_GET, []() {
-    ws_sendPacketToSTM32("@TWIST:STOP#");
-    ws_requestStatus();
-    server.send(200, "text/plain", "Twist stopped.");
-  });
+
+
 
   // --- SEMI AUTO MODE ---
   server.on("/semi", HTTP_GET, []() {
@@ -347,7 +381,7 @@ void start_webserver() {
   });
 
   server.begin();
-  Serial.println("✅ Web server started");
+  Serial.println("Web server started");
 }
 
 // ===== LOOP HANDLER =====
