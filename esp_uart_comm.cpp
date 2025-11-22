@@ -1,108 +1,157 @@
 #include "esp_uart_comm.h"
-#include <string.h>
 #include <Arduino.h>
+#include <string.h>
 
-// ===== GLOBAL STATE =====
+// ===== EXTERNAL GLOBALS =====
 extern String g_motorStatus;
 extern int    g_waterLevel;
 extern String g_mode;
 
+// ===== RX BUFFER =====
 static char s_rxBuffer[ESP_UART_RX_BUFFER_SIZE];
 static int  s_rxBufferIndex = 0;
 
+// ===== STATUS TIMER =====
+static unsigned long s_lastStatusRequest = 0;
+
+// ===== DEBUG MACROS =====
 #if ESP_UART_ENABLE_DEBUG
-  #define DBG_PRINT(...)  Serial.printf(__VA_ARGS__)
-  #define DBG_PRINTLN(...) Serial.println(__VA_ARGS__)
+  #define DBG_PRINT(...)     Serial.printf(__VA_ARGS__)
+  #define DBG_PRINTLN(...)   Serial.println(__VA_ARGS__)
 #else
   #define DBG_PRINT(...)
   #define DBG_PRINTLN(...)
 #endif
 
-static unsigned long s_lastStatusRequest = 0;
 
-// ===== INIT =====
+// ======================================================
+//  INIT
+// ======================================================
 void esp_uart_init() {
   Serial.begin(ESP_UART_BAUD_RATE);
   Serial.setTimeout(10);
+
   memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
   s_rxBufferIndex = 0;
+
   s_lastStatusRequest = millis();
+
   DBG_PRINTLN("UART Init OK");
 }
 
-// ===== SEND =====
+
+// ======================================================
+//  SEND PACKET (Always @...# with CRLF)
+// ======================================================
 void esp_uart_send(const char *message) {
   if (!message || !*message) return;
+
   String pkt = message;
+
   pkt.trim();
+
+  // wrap packet
   if (!pkt.startsWith("@")) pkt = "@" + pkt;
-  if (!pkt.endsWith("#")) pkt += "#";
+  if (!pkt.endsWith("#"))   pkt += "#";
+
+  // ⭐ Add CRLF so receiving device gets a proper end line
+  pkt += "\r\n";
+
   Serial.write(pkt.c_str(), pkt.length());
   Serial.flush();
-  #if ESP_UART_ENABLE_DEBUG
-    Serial.print("→ SENT: "); Serial.println(pkt);
-  #endif
+
+#if ESP_UART_ENABLE_DEBUG
+  Serial.print("→ SENT: ");
+  Serial.println(pkt);
+#endif
 }
 
-// ===== RECEIVE =====
+
+// ======================================================
+//  RECEIVER (robust, handles multiple packets)
+// ======================================================
 bool esp_uart_receive(char *buffer, size_t bufferSize) {
   bool packetReceived = false;
+
   while (Serial.available()) {
     char c = Serial.read();
+
+    // Ignore CR/LF
+    if (c == '\r' || c == '\n') continue;
+
+    // ignore unwanted control chars
     if (c < 32 && c != '@' && c != '#') continue;
-    if (s_rxBufferIndex < ESP_UART_RX_BUFFER_SIZE - 1) {
-      s_rxBuffer[s_rxBufferIndex++] = c;
-      if (c == '#') {
-        s_rxBuffer[s_rxBufferIndex] = '\0';
-        packetReceived = true;
-        break;
-      }
-    } else {
+
+    // Start of new packet
+    if (c == '@') {
       s_rxBufferIndex = 0;
       memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
-      DBG_PRINTLN("RX overflow cleared");
+    }
+
+    // Append char
+    if (s_rxBufferIndex < ESP_UART_RX_BUFFER_SIZE - 1) {
+      s_rxBuffer[s_rxBufferIndex++] = c;
+    }
+
+    // End of packet
+    if (c == '#') {
+      s_rxBuffer[s_rxBufferIndex] = '\0';
+
+      if (strlen(s_rxBuffer) < bufferSize) {
+        strncpy(buffer, s_rxBuffer, bufferSize - 1);
+        buffer[bufferSize - 1] = '\0';
+        packetReceived = true;
+      }
+
+      // Reset for next packet
+      s_rxBufferIndex = 0;
+      memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
+      return true;
     }
   }
 
-  if (packetReceived) {
-    if (s_rxBuffer[0] != '@') return false;
-    if (strlen(s_rxBuffer) >= bufferSize) return false;
-    strncpy(buffer, s_rxBuffer, bufferSize - 1);
-    buffer[bufferSize - 1] = '\0';
-    memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
-    s_rxBufferIndex = 0;
-    return true;
-  }
-  return false;
+  return packetReceived;
 }
 
-// ===== STATUS REQUEST =====
+
+// ======================================================
+//  STATUS REQUEST
+// ======================================================
 void esp_uart_requestStatus() {
-  esp_uart_send("@STATUS#");
+  esp_uart_send("STATUS");
   s_lastStatusRequest = millis();
   DBG_PRINTLN("Requested @STATUS#");
 }
 
-// ===== AUTO STATUS REQUEST =====
+
+// ======================================================
+//  AUTO STATUS REQUEST (based on motor state)
+// ======================================================
 void esp_uart_autoStatusRequest() {
   unsigned long now = millis();
 
-  // Dynamic interval: 5s if motor ON, 5min if OFF
-  unsigned long interval = (g_motorStatus == "ON") ? 10000UL : 10UL * 60UL * 1000UL;
+  // 10s when motor ON, 10 minutes when OFF
+  unsigned long interval = (g_motorStatus == "ON") ? 10000UL : (10UL * 60UL * 1000UL);
 
   if (now - s_lastStatusRequest >= interval) {
     esp_uart_requestStatus();
     s_lastStatusRequest = now;
-    DBG_PRINTLN("Auto status request → " + g_motorStatus);
+
+    DBG_PRINT("Auto status request → Motor:");
+    DBG_PRINTLN(g_motorStatus);
   }
 }
 
-// ===== COMMAND PARSER =====
+
+// ======================================================
+//  PARSE INCOMING PACKET
+// ======================================================
 void esp_uart_processCommand(const char *cmd) {
   if (!cmd) return;
 
-  // Example packet: @STATUS:MOTOR:ON:LEVEL:80:MODE:SEMI_AUTO#
+  // @STATUS:MOTOR:ON:LEVEL:80:MODE:SEMI_AUTO#
   if (strstr(cmd, "@STATUS:")) {
+
     String pkt = String(cmd);
     pkt.replace("@STATUS:", "");
     pkt.replace("#", "");
@@ -118,11 +167,22 @@ void esp_uart_processCommand(const char *cmd) {
     g_mode        = pkt.substring(modeIdx + 6);
 
     Serial.printf("📶 STATUS → Motor:%s | Level:%d | Mode:%s\n",
-                  g_motorStatus.c_str(), g_waterLevel, g_mode.c_str());
+                  g_motorStatus.c_str(),
+                  g_waterLevel,
+                  g_mode.c_str());
     return;
   }
 
-  else if (strstr(cmd, "@ACK:")) DBG_PRINTLN(cmd);
-  else if (strstr(cmd, "@ERR:")) DBG_PRINTLN(cmd);
-  else DBG_PRINT("Unknown packet: %s\n", cmd);
+  // ACK and ERR
+  else if (strstr(cmd, "@ACK:")) {
+    DBG_PRINTLN(cmd);
+  }
+
+  else if (strstr(cmd, "@ERR:")) {
+    DBG_PRINTLN(cmd);
+  }
+
+  else {
+    DBG_PRINT("Unknown packet: %s\n", cmd);
+  }
 }

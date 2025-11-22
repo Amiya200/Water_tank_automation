@@ -16,7 +16,6 @@ static WebServer server(80);
 #include "web_server.h"
 #include "countdown_mode.h"
 #include "manual_mode.h"
-#include "search_mode.h"
 #include "semi_auto_mode.h"
 #include "timer_mode.h"
 #include "twist_mode.h"
@@ -64,17 +63,10 @@ static void ws_sendPacketToSTM32(const String &payload) {
 static void ws_requestStatus() {
   ws_sendPacketToSTM32("@STATUS#");
   g_lastStatusReq = millis();
-  // Serial.println("📡 Requested @STATUS#");
 }
 
 // dynamic 5 s / 5 min update
 static void ws_autoStatusRefresh() {
-  // unsigned long now = millis();
-  // unsigned long interval = (g_motorStatus == "ON") ? 5000UL : 5UL * 60UL * 1000UL;
-  // if (now - g_lastStatusReq >= interval) {
-  //   ws_requestStatus();
-  //   g_lastStatusReq = now;
-  // }
 }
 
 // apply STM32 packet to web globals
@@ -167,23 +159,34 @@ void start_webserver() {
     json += "}";
     server.send(200, "application/json", json);
   });
+  // --- MANUAL TOGGLE ---
+  server.on("/manual_toggle", HTTP_GET, []() {
+    if (g_liveMode == "MANUAL") {
+      // Turn OFF manual mode
+      ws_sendPacketToSTM32("@MANUAL:OFF#");
+      g_liveMode = "OFFMODE";
+    } else {
+      // Turn ON manual mode
+      ws_sendPacketToSTM32("@MANUAL:ON#");
+      g_liveMode = "MANUAL";
+    }
+    ws_requestStatus();
+    server.send(200, "text/plain", "OK");
+  });
 
-  // --- MANUAL MODE ---
-  server.on("/manual", HTTP_GET, []() {
-    server.send(200, "text/html", manualModeHtml);
-  });
-  server.on("/manual/on", HTTP_GET, []() {
-    ws_setMotor(true);
-    ws_sendPacketToSTM32("@MANUAL:ON#");
+  // --- SEMI AUTO TOGGLE ---
+  server.on("/semi_toggle", HTTP_GET, []() {
+    if (g_liveMode == "SEMIAUTO") {
+      ws_sendPacketToSTM32("@SEMIAUTO:OFF#");
+      g_liveMode = "OFFMODE";
+    } else {
+      ws_sendPacketToSTM32("@SEMIAUTO:ON#");
+      g_liveMode = "SEMIAUTO";
+    }
     ws_requestStatus();
-    server.send(200, "text/plain", "Motor ON");
+    server.send(200, "text/plain", "OK");
   });
-  server.on("/manual/off", HTTP_GET, []() {
-    ws_setMotor(false);
-    ws_sendPacketToSTM32("@MANUAL:OFF#");
-    ws_requestStatus();
-    server.send(200, "text/plain", "Motor OFF");
-  });
+
 
   // --- COUNTDOWN MODE ---
   server.on("/countdown", HTTP_GET, []() {
@@ -268,13 +271,6 @@ void start_webserver() {
 
     String responseText = "Timer slots updated successfully!\n\n";
     responseText += humanSummary;
-    // responseText += "\nRaw Packet → " + packet + "\n";
-
-    // if (resp.startsWith("@ACK") || resp.indexOf("TIMER_OK") >= 0)
-    //   responseText += "STM32 ACK: " + resp;
-    // else
-    //   responseText += "No ACK received from STM32";
-
     server.send(200, "text/plain", responseText);
   });
 
@@ -298,39 +294,6 @@ void start_webserver() {
     ws_requestStatus();
     server.send(200, "text/plain", resp.isEmpty() ? "Timer stopped (no ACK)" : resp);
   });
-
-
-  // --- SEARCH MODE ---
-  server.on("/search", HTTP_GET, []() {
-    server.send(200, "text/html", searchModeHtml);
-  });
-  server.on("/search_submit", HTTP_GET, []() {
-    String gap = server.arg("gap");
-    String dry = server.arg("dryrun");
-    String onTime = server.arg("onTime");
-    String offTime = server.arg("offTime");
-
-    String days = "";
-    const char *allDays[] = { "sun", "mon", "tue", "wed", "thu", "fri", "sat" };
-    for (auto d : allDays) {
-      if (server.hasArg(d)) {
-        if (days.length() > 0) days += ",";
-        days += d;
-      }
-    }
-
-    if (gap.isEmpty() || dry.isEmpty() || onTime.isEmpty() || offTime.isEmpty()) {
-      server.send(400, "text/plain", "Missing parameters");
-      return;
-    }
-
-    String packet = "@SEARCH:SET:" + gap + ":" + dry + ":" + onTime + ":" + offTime + ":" + days + "#";
-    ws_sendPacketToSTM32(packet);
-    ws_requestStatus();
-
-    server.send(200, "text/plain", "Search settings sent:\n" + packet);
-  });
-
 
 
   // --- TWIST MODE ---
@@ -368,17 +331,6 @@ void start_webserver() {
 
 
 
-  // --- SEMI AUTO MODE ---
-  server.on("/semi", HTTP_GET, []() {
-    server.send(200, "text/html", semiAutoModeHtml);
-  });
-  server.on("/semi_toggle", HTTP_GET, []() {
-    g_motorState = !g_motorState;
-    ws_setMotor(g_motorState);
-    ws_sendPacketToSTM32(g_motorState ? "@SEMIAUTO:ON#" : "@SEMIAUTO:OFF#");
-    ws_requestStatus();
-    server.send(200, "text/plain", g_motorState ? "ON" : "OFF");
-  });
 
   server.begin();
   Serial.println("Web server started");
