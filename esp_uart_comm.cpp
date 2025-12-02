@@ -1,4 +1,5 @@
 #include "esp_uart_comm.h"
+#include "auto_mode.h"        // ⭐ NEW — AUTO MODE SYNC
 #include <Arduino.h>
 #include <string.h>
 
@@ -47,15 +48,12 @@ void esp_uart_send(const char *message) {
   if (!message || !*message) return;
 
   String pkt = message;
-
   pkt.trim();
 
-  // wrap packet
   if (!pkt.startsWith("@")) pkt = "@" + pkt;
   if (!pkt.endsWith("#"))   pkt += "#";
 
-  // ⭐ Add CRLF so receiving device gets a proper end line
-  pkt += "\r\n";
+  pkt += "\r\n";              // ⭐ Add CRLF
 
   Serial.write(pkt.c_str(), pkt.length());
   Serial.flush();
@@ -76,24 +74,18 @@ bool esp_uart_receive(char *buffer, size_t bufferSize) {
   while (Serial.available()) {
     char c = Serial.read();
 
-    // Ignore CR/LF
     if (c == '\r' || c == '\n') continue;
-
-    // ignore unwanted control chars
     if (c < 32 && c != '@' && c != '#') continue;
 
-    // Start of new packet
     if (c == '@') {
       s_rxBufferIndex = 0;
       memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
     }
 
-    // Append char
     if (s_rxBufferIndex < ESP_UART_RX_BUFFER_SIZE - 1) {
       s_rxBuffer[s_rxBufferIndex++] = c;
     }
 
-    // End of packet
     if (c == '#') {
       s_rxBuffer[s_rxBufferIndex] = '\0';
 
@@ -103,7 +95,6 @@ bool esp_uart_receive(char *buffer, size_t bufferSize) {
         packetReceived = true;
       }
 
-      // Reset for next packet
       s_rxBufferIndex = 0;
       memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
       return true;
@@ -125,13 +116,13 @@ void esp_uart_requestStatus() {
 
 
 // ======================================================
-//  AUTO STATUS REQUEST (based on motor state)
+//  AUTO STATUS REQUEST (10s motor ON, 10m motor OFF)
 // ======================================================
 void esp_uart_autoStatusRequest() {
   unsigned long now = millis();
 
-  // 10s when motor ON, 10 minutes when OFF
-  unsigned long interval = (g_motorStatus == "ON") ? 10000UL : (10UL * 60UL * 1000UL);
+  unsigned long interval =
+      (g_motorStatus == "ON") ? 10000UL : (10UL * 60UL * 1000UL);
 
   if (now - s_lastStatusRequest >= interval) {
     esp_uart_requestStatus();
@@ -144,12 +135,14 @@ void esp_uart_autoStatusRequest() {
 
 
 // ======================================================
-//  PARSE INCOMING PACKET
+//  PARSE INCOMING PACKET (STATUS + AUTO MODE SYNC)
 // ======================================================
 void esp_uart_processCommand(const char *cmd) {
   if (!cmd) return;
 
-  // @STATUS:MOTOR:ON:LEVEL:80:MODE:SEMI_AUTO#
+  // ======================================================
+  //  STATUS PACKET HANDLER
+  // ======================================================
   if (strstr(cmd, "@STATUS:")) {
 
     String pkt = String(cmd);
@@ -160,11 +153,15 @@ void esp_uart_processCommand(const char *cmd) {
     int levelIdx = pkt.indexOf(":LEVEL:");
     int modeIdx  = pkt.indexOf(":MODE:");
 
-    if (motorIdx == -1 || levelIdx == -1 || modeIdx == -1) return;
+    if (motorIdx == -1 || levelIdx == -1 || modeIdx == -1)
+      return;
 
     g_motorStatus = pkt.substring(motorIdx + 6, levelIdx);
     g_waterLevel  = pkt.substring(levelIdx + 7, modeIdx).toInt();
     g_mode        = pkt.substring(modeIdx + 6);
+
+    // ⭐ AUTO MODE SYNC — Updates g_autoState inside auto_mode.h
+    autoMode_applyStatusFromSTM32(g_mode);
 
     Serial.printf("📶 STATUS → Motor:%s | Level:%d | Mode:%s\n",
                   g_motorStatus.c_str(),
@@ -173,7 +170,9 @@ void esp_uart_processCommand(const char *cmd) {
     return;
   }
 
-  // ACK and ERR
+  // ======================================================
+  //  ACK / ERR PACKETS
+  // ======================================================
   else if (strstr(cmd, "@ACK:")) {
     DBG_PRINTLN(cmd);
   }
@@ -182,6 +181,9 @@ void esp_uart_processCommand(const char *cmd) {
     DBG_PRINTLN(cmd);
   }
 
+  // ======================================================
+  //  UNKNOWN COMMAND
+  // ======================================================
   else {
     DBG_PRINT("Unknown packet: %s\n", cmd);
   }

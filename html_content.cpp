@@ -72,11 +72,16 @@ body {
 .manual-on { background: #0d47a1; }
 
 .semi-off { background: #fbc02d; color: #000; }
-.semi-on { background: #f57f17; color: #000; }
+.semi-on  { background: #f57f17; color: #000; }
+
+/* ⭐ NEW – AUTO MODE COLORS */
+.auto-off { background: #43a047; }     /* Green tone */
+.auto-on  { background: #1b5e20; }      /* Darker active green */
 
 .timer { background: #00acc1; color: #000; }
 .countdown { background: #ef6c00; }
 .twist { background: #00695c; }
+
 </style>
 </head>
 
@@ -93,8 +98,12 @@ body {
 
 <h2>Controls</h2>
 <div class="button-grid">
+
   <!-- Toggle Manual -->
   <button id="manualBtn" class="button manual-off" onclick="toggleManual()">Manual Mode</button>
+
+  <!-- ⭐ NEW – Toggle AUTO MODE -->
+  <button id="autoBtn" class="button auto-off" onclick="toggleAuto()">Auto Mode</button>
 
   <!-- Toggle Semi-Auto -->
   <button id="semiBtn" class="button semi-off" onclick="toggleSemi()">Semi Auto</button>
@@ -103,6 +112,7 @@ body {
   <a class="button timer" href="/timer">Timer Mode</a>
   <a class="button countdown" href="/countdown">Countdown</a>
   <a class="button twist" href="/twist">Twist</a>
+
 </div>
 
 <script>
@@ -129,22 +139,22 @@ async function fetchStatus() {
 
 // UPDATE UI COLORS BASED ON MODE
 function updateButtons(mode) {
-  const manualBtn = document.getElementById("manualBtn");
-  const semiBtn = document.getElementById("semiBtn");
 
-  // Manual
-  if (mode === "MANUAL") {
-    manualBtn.className = "button manual-on";
-  } else {
-    manualBtn.className = "button manual-off";
-  }
+  const manualBtn = document.getElementById("manualBtn");
+  const semiBtn   = document.getElementById("semiBtn");
+  const autoBtn   = document.getElementById("autoBtn");
+
+  // Manual Mode
+  manualBtn.className = 
+    (mode === "MANUAL") ? "button manual-on" : "button manual-off";
 
   // Semi Auto
-  if (mode === "SEMIAUTO") {
-    semiBtn.className = "button semi-on";
-  } else {
-    semiBtn.className = "button semi-off";
-  }
+  semiBtn.className =
+    (mode === "SEMIAUTO") ? "button semi-on" : "button semi-off";
+
+  // ⭐ AUTO MODE
+  autoBtn.className =
+    (mode === "AUTO") ? "button auto-on" : "button auto-off";
 }
 
 // MANUAL TOGGLE
@@ -159,7 +169,13 @@ async function toggleSemi() {
   fetchStatus();
 }
 
-setInterval(fetchStatus, 1000); // 1 sec updates
+// ⭐ NEW – AUTO MODE TOGGLE
+async function toggleAuto() {
+  await fetch("/auto_toggle");
+  fetchStatus();
+}
+
+setInterval(fetchStatus, 1000);
 fetchStatus();
 </script>
 
