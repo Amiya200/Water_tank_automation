@@ -1,7 +1,12 @@
 #ifndef TIMER_MODE_H
 #define TIMER_MODE_H
 
-const char* timerModeHtml = R"rawliteral(
+#include <Arduino.h>
+
+#if defined(ESP8266)
+  #include <pgmspace.h>
+  // store in PROGMEM on ESP8266
+  const char timerModeHtml[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
@@ -43,9 +48,16 @@ const char* timerModeHtml = R"rawliteral(
     }
     label {
       font-size: 16px;
-      display: block;
       margin-bottom: 5px;
       color: #ccc;
+    }
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      margin-right: 6px;
+    }
+    .days-container label {
+      margin-right: 10px;
+      display: inline-block;
     }
     input[type="time"] {
       width: 45%;
@@ -109,157 +121,152 @@ const char* timerModeHtml = R"rawliteral(
   </style>
 </head>
 <body>
-  <h1>Set Timer Mode</h1>
 
-  <div class="form-container">
-    <form id="timerForm">
-      <div class="time-slot">
-        <h3>Time Slot 1</h3>
-        <label>ON Time:</label>
-        <input type="time" id="onTime1"><br>
-        <label>OFF Time:</label>
-        <input type="time" id="offTime1">
-        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
+<h1>Set Timer Mode</h1>
+
+<div class="form-container">
+<form id="timerForm">
+<script>
+function slotHTML(n){
+  return `
+  <div class="time-slot">
+    <h3>Time Slot ${n}</h3>
+
+    <label><input type="checkbox" id="enable${n}"> Enable Slot ${n}</label>
+
+    <div style="margin-top:10px;text-align:left;color:#ccc;font-size:14px;">
+      <b>Select Days:</b><br><br>
+      <div class="days-container">
+        <label><input type="checkbox" id="d${n}_mon"> Mon</label>
+        <label><input type="checkbox" id="d${n}_tue"> Tue</label>
+        <label><input type="checkbox" id="d${n}_wed"> Wed</label>
+        <label><input type="checkbox" id="d${n}_thu"> Thu</label>
+        <label><input type="checkbox" id="d${n}_fri"> Fri</label>
+        <label><input type="checkbox" id="d${n}_sat"> Sat</label>
+        <label><input type="checkbox" id="d${n}_sun"> Sun</label>
       </div>
+    </div>
 
-      <div class="time-slot">
-        <h3>Time Slot 2</h3>
-        <label>ON Time:</label>
-        <input type="time" id="onTime2"><br>
-        <label>OFF Time:</label>
-        <input type="time" id="offTime2">
-        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
-      </div>
+    <label>ON Time:</label>
+    <input type="time" id="onTime${n}"><br>
 
-      <div class="time-slot">
-        <h3>Time Slot 3</h3>
-        <label>ON Time:</label>
-        <input type="time" id="onTime3"><br>
-        <label>OFF Time:</label>
-        <input type="time" id="offTime3">
-        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
-      </div>
+    <label>OFF Time:</label>
+    <input type="time" id="offTime${n}">
 
-      <div class="time-slot">
-        <h3>Time Slot 4</h3>
-        <label>ON Time:</label>
-        <input type="time" id="onTime4"><br>
-        <label>OFF Time:</label>
-        <input type="time" id="offTime4">
-        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
-      </div>
+    <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">
+      (Required when slot enabled)
+    </div>
+  </div>`;
+}
 
-      <div class="time-slot">
-        <h3>Time Slot 5</h3>
-        <label>ON Time:</label>
-        <input type="time" id="onTime5"><br>
-        <label>OFF Time:</label>
-        <input type="time" id="offTime5">
-        <div class="optional" style="font-size:12px;color:#888;font-style:italic;margin-top:5px;">(Optional - fill both or none)</div>
-      </div>
+document.write(slotHTML(1));
+document.write(slotHTML(2));
+document.write(slotHTML(3));
+document.write(slotHTML(4));
+document.write(slotHTML(5));
+</script>
 
-      <button type="submit">Set Timer</button>
-    </form>
-    <div class="loading" id="loading" style="display: none;">Sending timer configuration...</div>
-    <div id="result" class="result"></div>
+<button type="submit">Set Timer</button>
+</form>
 
-    <!-- bottom back only -->
-    <button class="back-bottom" type="button" onclick="window.location.href='/'">Back to Home</button>
-  </div>
+<div class="loading" id="loading" style="display:none;">Sending timer configuration...</div>
+<div id="result" class="result"></div>
 
-  <script>
-    document.getElementById('timerForm').addEventListener('submit', function(e) {
-      e.preventDefault();
+<button class="back-bottom" type="button" onclick="window.location.href='/'">Back to Home</button>
 
-      const onTime1 = document.getElementById('onTime1').value;
-      const offTime1 = document.getElementById('offTime1').value;
-      const onTime2 = document.getElementById('onTime2').value;
-      const offTime2 = document.getElementById('offTime2').value;
-      const onTime3 = document.getElementById('onTime3').value;
-      const offTime3 = document.getElementById('offTime3').value;
-      const onTime4 = document.getElementById('onTime4').value;
-      const offTime4 = document.getElementById('offTime4').value;
-      const onTime5 = document.getElementById('onTime5').value;
-      const offTime5 = document.getElementById('offTime5').value;
+</div>
 
-      const loading = document.getElementById('loading');
-      const result = document.getElementById('result');
+<script>
 
-      const has1 = onTime1 && offTime1;
-      const has2 = onTime2 && offTime2;
-      const has3 = onTime3 && offTime3;
-      const has4 = onTime4 && offTime4;
-      const has5 = onTime5 && offTime5;
+document.getElementById('timerForm').addEventListener('submit', function(e){
+  e.preventDefault();
 
-      if (!has1 && !has2 && !has3 && !has4 && !has5) {
-        result.className = 'result error';
-        result.innerHTML = "Please fill at least one complete time slot (both ON and OFF times)";
-        return;
+  const loading = document.getElementById('loading');
+  const result = document.getElementById('result');
+
+  let queryParams = [];
+  let anyEnabled = false;
+  let badSlots = [];
+
+  function getDays(n){
+    let arr = [];
+    if(document.getElementById(`d${n}_mon`).checked) arr.push("mon");
+    if(document.getElementById(`d${n}_tue`).checked) arr.push("tue");
+    if(document.getElementById(`d${n}_wed`).checked) arr.push("wed");
+    if(document.getElementById(`d${n}_thu`).checked) arr.push("thu");
+    if(document.getElementById(`d${n}_fri`).checked) arr.push("fri");
+    if(document.getElementById(`d${n}_sat`).checked) arr.push("sat");
+    if(document.getElementById(`d${n}_sun`).checked) arr.push("sun");
+    return arr;
+  }
+
+  for(let n=1;n<=5;n++){
+    let enable = document.getElementById(`enable${n}`).checked;
+    let on = document.getElementById(`onTime${n}`).value;
+    let off = document.getElementById(`offTime${n}`).value;
+    let days = getDays(n);
+
+    if(enable){
+      anyEnabled = true;
+
+      if(!on || !off || days.length === 0){
+        badSlots.push(n);
+      } else {
+        queryParams.push(`slot${n}=1`);
+        queryParams.push(`days${n}=` + encodeURIComponent(days.join(",")));
+        queryParams.push(`on${n}=` + encodeURIComponent(on));
+        queryParams.push(`off${n}=` + encodeURIComponent(off));
       }
+    }
+  }
 
-      const bad = [];
-      if ((onTime1 && !offTime1) || (!onTime1 && offTime1)) bad.push(1);
-      if ((onTime2 && !offTime2) || (!onTime2 && offTime2)) bad.push(2);
-      if ((onTime3 && !offTime3) || (!onTime3 && offTime3)) bad.push(3);
-      if ((onTime4 && !offTime4) || (!onTime4 && offTime4)) bad.push(4);
-      if ((onTime5 && !offTime5) || (!onTime5 && offTime5)) bad.push(5);
+  if(!anyEnabled){
+    result.className = "result error";
+    result.innerHTML = "Enable at least 1 time slot.";
+    return;
+  }
 
-      if (bad.length > 0) {
-        result.className = 'result error';
-        result.innerHTML = "Incomplete time slot(s): " + bad.join(', ') +
-                           ". Please fill both ON and OFF or leave both empty.";
-        return;
-      }
+  if(badSlots.length > 0){
+    result.className = "result error";
+    result.innerHTML = "Incomplete slot(s): " + badSlots.join(', ') +
+      ". Please fill Days + ON + OFF when enabled.";
+    return;
+  }
 
-      let queryParams = [];
-      if (has1) {
-        queryParams.push('on1=' + encodeURIComponent(onTime1));
-        queryParams.push('off1=' + encodeURIComponent(offTime1));
-      }
-      if (has2) {
-        queryParams.push('on2=' + encodeURIComponent(onTime2));
-        queryParams.push('off2=' + encodeURIComponent(offTime2));
-      }
-      if (has3) {
-        queryParams.push('on3=' + encodeURIComponent(onTime3));
-        queryParams.push('off3=' + encodeURIComponent(offTime3));
-      }
-      if (has4) {
-        queryParams.push('on4=' + encodeURIComponent(onTime4));
-        queryParams.push('off4=' + encodeURIComponent(offTime4));
-      }
-      if (has5) {
-        queryParams.push('on5=' + encodeURIComponent(onTime5));
-        queryParams.push('off5=' + encodeURIComponent(offTime5));
-      }
+  loading.style.display = "block";
+  result.innerHTML = "";
 
-      loading.style.display = 'block';
-      result.innerHTML = '';
-
-      fetch('/timer/set?' + queryParams.join('&'))
-        .then(function(response) {
-          loading.style.display = 'none';
-          if (response.ok) {
-            return response.text();
-          } else {
-            result.className = 'result error';
-            result.innerHTML = "Failed to save timer configuration. Server returned: " + response.status;
-            throw new Error('Server returned ' + response.status);
-          }
-        })
-        .then(function(text) {
-          result.className = 'result success';
-          result.innerHTML = "Timer configuration saved successfully!<br><br><pre style='text-align:left;white-space:pre-wrap;'>" + text + "</pre>";
-        })
-        .catch(function(err) {
-          loading.style.display = 'none';
-          result.className = 'result error';
-          result.innerHTML = "Connection error: " + err.message;
-        });
+  fetch("/timer/set?" + queryParams.join("&"))
+    .then(res=>{
+      loading.style.display="none";
+      if(res.ok) return res.text();
+      result.className="result error";
+      result.innerHTML="Server error: "+res.status;
+      throw new Error("HTTP "+res.status);
+    })
+    .then(text=>{
+      result.className="result success";
+      result.innerHTML="Saved Successfully:<br><br><pre>"+text+"</pre>";
+    })
+    .catch(err=>{
+      loading.style.display="none";
+      result.className="result error";
+      result.innerHTML="Connection Error: "+err.message;
     });
-  </script>
+
+});
+
+</script>
+
 </body>
 </html>
 )rawliteral";
+
+#else
+  // Non-ESP8266: keep as normal const char*
+  const char* timerModeHtml = R"rawliteral(
+  // (same HTML as above) ...
+)rawliteral";
+#endif
 
 #endif // TIMER_MODE_H

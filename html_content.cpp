@@ -51,9 +51,9 @@ body {
 /* Buttons */
 .button-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  max-width: 340px;
+  max-width: 520px;
   margin: 0 auto;
 }
 .button {
@@ -65,6 +65,9 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: 0.3s;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
 }
 
 /* Colors */
@@ -82,6 +85,14 @@ body {
 .countdown { background: #ef6c00; }
 .twist { background: #00695c; }
 
+/* Settings button style */
+.settings { background: #6a1b9a; }
+
+/* Responsive */
+@media (max-width: 520px) {
+  .button-grid { grid-template-columns: repeat(2, 1fr); max-width: 360px; }
+  .tank-level { width: 110px; height: 170px; }
+}
 </style>
 </head>
 
@@ -113,28 +124,39 @@ body {
   <a class="button countdown" href="/countdown">Countdown</a>
   <a class="button twist" href="/twist">Twist</a>
 
+  <!-- ⭐ NEW – Settings Page -->
+  <a class="button settings" href="/settings">Settings</a>
+
 </div>
 
 <script>
 // LIVE STATUS POLLING
 async function fetchStatus() {
-  const res = await fetch("/status");
-  const data = await res.json();
+  try {
+    const res = await fetch("/status");
+    if (!res.ok) return;
+    const data = await res.json();
 
-  // Motor Status
-  const motorEl = document.getElementById("motorStatus");
-  motorEl.innerHTML = "Motor: " + data.motor;
-  motorEl.className = "status " + (data.motor === "ON" ? "on" : "off");
+    // Motor Status
+    const motorEl = document.getElementById("motorStatus");
+    motorEl.innerHTML = "Motor: " + data.motor;
+    motorEl.className = "status " + (data.motor === "ON" ? "on" : "off");
 
-  // Mode Text
-  document.getElementById("modeStatus").innerHTML = "Mode: " + data.mode;
+    // Mode Text
+    document.getElementById("modeStatus").innerHTML = "Mode: " + data.mode;
 
-  // Level Tank
-  let lvl = data.level;
-  document.getElementById("levelFill").style.height = lvl + "%";
-  document.getElementById("levelFill").innerHTML = lvl + "%";
+    // Level Tank
+    let lvl = data.level;
+    if (typeof lvl !== 'number') lvl = parseInt(lvl) || 0;
+    if (lvl < 0) lvl = 0;
+    if (lvl > 100) lvl = 100;
+    document.getElementById("levelFill").style.height = lvl + "%";
+    document.getElementById("levelFill").innerHTML = lvl + "%";
 
-  updateButtons(data.mode);
+    updateButtons(data.mode);
+  } catch (e) {
+    console.log("fetchStatus error:", e);
+  }
 }
 
 // UPDATE UI COLORS BASED ON MODE
@@ -152,27 +174,33 @@ function updateButtons(mode) {
   semiBtn.className =
     (mode === "SEMIAUTO") ? "button semi-on" : "button semi-off";
 
-  // ⭐ AUTO MODE
+  // ⭐ AUTO Mode
   autoBtn.className =
     (mode === "AUTO") ? "button auto-on" : "button auto-off";
 }
 
 // MANUAL TOGGLE
 async function toggleManual() {
-  await fetch("/manual_toggle");
-  fetchStatus();
+  try {
+    await fetch("/manual_toggle");
+    await fetchStatus();
+  } catch (e) { console.log(e); }
 }
 
 // SEMI AUTO TOGGLE
 async function toggleSemi() {
-  await fetch("/semi_toggle");
-  fetchStatus();
+  try {
+    await fetch("/semi_toggle");
+    await fetchStatus();
+  } catch (e) { console.log(e); }
 }
 
 // ⭐ NEW – AUTO MODE TOGGLE
 async function toggleAuto() {
-  await fetch("/auto_toggle");
-  fetchStatus();
+  try {
+    await fetch("/auto_toggle");
+    await fetchStatus();
+  } catch (e) { console.log(e); }
 }
 
 setInterval(fetchStatus, 1000);

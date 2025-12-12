@@ -1,3 +1,4 @@
+// esp_uart_comm.h  <-- replace your old header with this
 #pragma once
 #include <Arduino.h>
 
@@ -8,5 +9,9 @@
 
 void esp_uart_init();
 void esp_uart_send(const char *message);
-bool esp_uart_receive(char *buffer, size_t bufferSize);
-void esp_uart_processCommand(const char *command);  // ok if empty
+
+// NOTE: added timeoutMs parameter (ms). Default 0 = non-blocking.
+// Matches implementation in esp_uart_comm.cpp
+bool esp_uart_receive(char *buffer, size_t bufferSize, unsigned long timeoutMs = 0);
+
+void esp_uart_processCommand(const char *command);
