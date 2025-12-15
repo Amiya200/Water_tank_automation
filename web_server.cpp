@@ -62,7 +62,6 @@ struct SettingsCache {
   String relay1Label = "Pump";
   String relay2Label = "Valve";
   String relay3Label = "Light";
-  TimerSlot timers[5];
   String rawExtras = "";
 } g_settings;
 
@@ -107,28 +106,7 @@ static String urlDecode(const String &str) {
   return ret;
 }
 
-// parse timers value "idx:enabled,on,off|idx2:..."
-static void parseTimersField(const String &val) {
-  if (val.length() == 0) return;
-  int start = 0;
-  while (start < val.length()) {
-    int bar = val.indexOf('|', start);
-    String piece;
-    if (bar == -1) { piece = val.substring(start); start = val.length(); }
-    else { piece = val.substring(start, bar); start = bar + 1; }
-    int colon = piece.indexOf(':');
-    if (colon <= 0) continue;
-    int idx = piece.substring(0, colon).toInt();
-    if (idx < 0 || idx >= 5) continue;
-    String rest = piece.substring(colon + 1); // enabled,on,off
-    int c1 = rest.indexOf(',');
-    int c2 = rest.indexOf(',', c1 + 1);
-    if (c1 == -1 || c2 == -1) continue;
-    g_settings.timers[idx].enabled = rest.substring(0, c1).toInt();
-    g_settings.timers[idx].on = rest.substring(c1 + 1, c2);
-    g_settings.timers[idx].off = rest.substring(c2 + 1);
-  }
-}
+
 
 // parse key=value;key2=val;... and update g_settings
 static void parseSettingsKV(const String &kvStr) {
@@ -160,7 +138,6 @@ static void parseSettingsKV(const String &kvStr) {
     else if (k == "relay1Label") g_settings.relay1Label = dec;
     else if (k == "relay2Label") g_settings.relay2Label = dec;
     else if (k == "relay3Label") g_settings.relay3Label = dec;
-    else if (k == "timers") parseTimersField(dec);
     else {
       // unknown key, append to rawExtras
       if (g_settings.rawExtras.length()) g_settings.rawExtras += ";";
@@ -294,15 +271,6 @@ void start_webserver() {
     json += "\"relay2Label\":\"" + g_settings.relay2Label + "\",";
     json += "\"relay3Label\":\"" + g_settings.relay3Label + "\",";
     json += "\"rawExtras\":\"" + g_settings.rawExtras + "\",";
-    json += "\"timers\":[";
-    for (int i = 0; i < 5; i++) {
-      if (i) json += ",";
-      json += "{";
-      json += "\"enabled\":" + String(g_settings.timers[i].enabled) + ",";
-      json += "\"on\":\"" + g_settings.timers[i].on + "\",";
-      json += "\"off\":\"" + g_settings.timers[i].off + "\"";
-      json += "}";
-    }
     json += "]}";
     server.send(200, "application/json", json);
   });
