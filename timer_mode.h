@@ -204,53 +204,65 @@ function makeSlot(n){
     <div class="time-row">
       <input type="time" id="on${n}" disabled>
       <input type="time" id="off${n}" disabled>
+      <input type="number" id="gap${n}" placeholder="Time Gap (min)" min="0" disabled> <!-- Time gap input -->
     </div>
+
+
   </div>`;
 }
 
 for(let i=1;i<=5;i++) form.insertAdjacentHTML("beforeend",makeSlot(i));
 
-document.querySelectorAll(".toggle").forEach(t=>{
-  t.addEventListener("change",()=>{
-    const n=t.id.replace("en","");
-    document.getElementById(`on${n}`).disabled=!t.checked;
-    document.getElementById(`off${n}`).disabled=!t.checked;
+document.querySelectorAll(".toggle").forEach(t => {
+  t.addEventListener("change", () => {
+    const n = t.id.replace("en", "");
+    document.getElementById(`on${n}`).disabled = !t.checked;
+    document.getElementById(`off${n}`).disabled = !t.checked;
+    document.getElementById(`gap${n}`).disabled = !t.checked;  // Enable gap input field when checkbox is checked
   });
 });
+
 
 document.querySelectorAll(".day").forEach(d=>{
   d.onclick=()=>d.classList.toggle("active");
 });
 
-form.onsubmit=e=>{
+form.onsubmit = e => {
   e.preventDefault();
-  let q=[], any=false, bad=[];
+  let q = [], any = false, bad = [];
 
-  for(let n=1;n<=5;n++){
-    if(!en(n).checked) continue;
-    any=true;
+  for (let n = 1; n <= 5; n++) {
+    if (!en(n).checked) continue;
+    any = true;
 
-    let days=[...document.querySelectorAll(`#days${n} .active`)]
-              .map(d=>d.dataset.d);
+    let days = [...document.querySelectorAll(`#days${n} .active`)]
+                .map(d => d.dataset.d);
+    let on = val(`on${n}`), off = val(`off${n}`);
+    let gap = val(`gap${n}`);  // Capture the time gap value
 
-    let on=val(`on${n}`), off=val(`off${n}`);
-
-    if(!days.length||!on||!off){bad.push(n);continue;}
+    if (!days.length || !on || !off || !gap) {
+      bad.push(n);
+      continue;
+    }
 
     q.push(`slot${n}=1`);
     q.push(`days${n}=${days.join(",")}`);
     q.push(`on${n}=${on}`);
     q.push(`off${n}=${off}`);
+    q.push(`gap${n}=${gap}`);  // Include gap value in the request
+
   }
 
-  if(!any) return show("Enable at least one slot","error");
-  if(bad.length) return show("Incomplete slot(s): "+bad.join(","),"error");
+  if (!any) return show("Enable at least one slot", "error");
+  if (bad.length) return show("Incomplete slot(s): " + bad.join(","), "error");
 
-  fetch("/timer/set?"+q.join("&"))
-    .then(r=>r.text())
-    .then(t=>show(t,"success"))
-    .catch(e=>show(e.message,"error"));
+  fetch("/timer/set?" + q.join("&"))
+    .then(r => r.text())
+    .then(t => show(t, "success"))
+    .catch(e => show(e.message, "error"));
 };
+
+
 
 function en(n){return document.getElementById(`en${n}`)}
 function val(id){return document.getElementById(id).value}

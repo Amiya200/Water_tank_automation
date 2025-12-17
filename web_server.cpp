@@ -6,11 +6,11 @@
 #include <Arduino.h>
 
 #if defined(ESP8266)
-  #include <ESP8266WebServer.h>
-  static ESP8266WebServer server(80);
+#include <ESP8266WebServer.h>
+static ESP8266WebServer server(80);
 #else
-  #include <WebServer.h>
-  static WebServer server(80);
+#include <WebServer.h>
+static WebServer server(80);
 #endif
 
 #include "web_server.h"
@@ -19,7 +19,7 @@
 #include "twist_mode.h"
 #include "auto_mode.h"
 #include "esp_uart_comm.h"
-#include "settings_mode.h"   // new: settings HTML
+#include "settings_mode.h"  // new: settings HTML
 
 extern const char *htmlContent;
 
@@ -47,7 +47,9 @@ struct TimerSlot {
   int enabled;
   String on;
   String off;
+  int timeGap;  // Add this variable to store the time gap
 };
+
 
 struct SettingsCache {
   String deviceName = "MyDevice";
@@ -96,7 +98,7 @@ static String urlDecode(const String &str) {
       char hi = str[i + 1];
       char lo = str[i + 2];
       char hexBuf[3] = { hi, lo, 0 };
-      char decoded = (char) strtol(hexBuf, NULL, 16);
+      char decoded = (char)strtol(hexBuf, NULL, 16);
       ret += decoded;
       i += 2;
     } else {
@@ -115,15 +117,21 @@ static void parseSettingsKV(const String &kvStr) {
   while (start < kvStr.length()) {
     int semi = kvStr.indexOf(';', start);
     String token;
-    if (semi == -1) { token = kvStr.substring(start); start = kvStr.length(); }
-    else { token = kvStr.substring(start, semi); start = semi + 1; }
+    if (semi == -1) {
+      token = kvStr.substring(start);
+      start = kvStr.length();
+    } else {
+      token = kvStr.substring(start, semi);
+      start = semi + 1;
+    }
     token.trim();
     if (token.length() == 0) continue;
     int eq = token.indexOf('=');
     if (eq == -1) continue;
     String k = token.substring(0, eq);
     String v = token.substring(eq + 1);
-    k.trim(); v.trim();
+    k.trim();
+    v.trim();
     // decode values that may be urlEncoded
     String dec = urlDecode(v);
     if (k == "deviceName") g_settings.deviceName = dec;
@@ -165,7 +173,7 @@ static void ws_applyUartPacketToWeb(const char *raw) {
     String settingsPart = "";
     String main = pkt;
     if (settingsPos != -1) {
-      settingsPart = pkt.substring(settingsPos + 10); // after ":SETTINGS:"
+      settingsPart = pkt.substring(settingsPos + 10);  // after ":SETTINGS:"
       main = pkt.substring(0, settingsPos);
     }
 
@@ -200,14 +208,20 @@ static void ws_applyUartPacketToWeb(const char *raw) {
       }
 
       Serial.printf("STATUS → Motor:%s | Level:%d | Mode:%s\n",
-        g_motorStatus.c_str(), g_liveLevel, g_liveMode.c_str());
+                    g_motorStatus.c_str(), g_liveLevel, g_liveMode.c_str());
     }
     return;
   }
 
   // LEGACY
-  if (pkt == "MOTOR_ON") { g_motorState = true; return; }
-  if (pkt == "MOTOR_OFF") { g_motorState = false; return; }
+  if (pkt == "MOTOR_ON") {
+    g_motorState = true;
+    return;
+  }
+  if (pkt == "MOTOR_OFF") {
+    g_motorState = false;
+    return;
+  }
 
   // Water Levels
   if (pkt == "10W") g_waterLevel = 10;
@@ -395,33 +409,31 @@ void start_webserver() {
   // TIMER SET ROUTE — ENABLE + DAYS + ON/OFF SUPPORT
   // ------------------------------------------------------
   server.on("/timer/set", HTTP_GET, []() {
-
     String packet = "@TIMER:SET";
     bool any = false;
     String summary = "";
 
     for (int i = 1; i <= 5; i++) {
-
       if (!server.hasArg("slot" + String(i))) continue;
       any = true;
 
       String days = server.arg("days" + String(i));
-      String on   = server.arg("on"   + String(i));
-      String off  = server.arg("off"  + String(i));
+      String on = server.arg("on" + String(i));
+      String off = server.arg("off" + String(i));
+      int gap = server.arg("gap" + String(i)).toInt();  // Capture time gap
 
-      int onH  = on.substring(0,2).toInt();
-      int onM  = on.substring(3,5).toInt();
-      int offH = off.substring(0,2).toInt();
-      int offM = off.substring(3,5).toInt();
+      int onH = on.substring(0, 2).toInt();
+      int onM = on.substring(3, 5).toInt();
+      int offH = off.substring(0, 2).toInt();
+      int offM = off.substring(3, 5).toInt();
 
-      packet += ":" + String(i) + ":" + days + ":" +
-                String(onH) + ":" + String(onM) + ":" +
-                String(offH) + ":" + String(offM);
+      packet += ":" + String(i) + ":" + days + ":" + String(onH) + ":" + String(onM) + ":" + String(offH) + ":" + String(offM) + ":" + String(gap);  // Include time gap
 
-      summary += "• Slot " + String(i) +
-        " | Days: " + days +
-        " | " + on + " → " + off + "\n";
+      summary += "• Slot " + String(i) + " | Days: " + days + " | " + on + " → " + off + " | Gap: " + String(gap) + " min\n";
     }
+
+
+
 
     if (!any) {
       server.send(400, "text/plain", "No valid slot selected");
@@ -464,7 +476,7 @@ void start_webserver() {
     String offTime = server.arg("offTime");
 
     String days = "";
-    const char *allDays[] = {"mon","tue","wed","thu","fri","sat","sun"};
+    const char *allDays[] = { "mon", "tue", "wed", "thu", "fri", "sat", "sun" };
 
     for (auto d : allDays) {
       if (server.hasArg(d)) {
@@ -473,8 +485,7 @@ void start_webserver() {
       }
     }
 
-    String packet = "@TWIST:SET:" + onDur + ":" + offDur + ":" +
-                    onTime + ":" + offTime + ":" + days + "#";
+    String packet = "@TWIST:SET:" + onDur + ":" + offDur + ":" + onTime + ":" + offTime + ":" + days + "#";
     ws_sendPacketToSTM32(packet);
 
     ws_requestStatus();
