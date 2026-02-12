@@ -52,12 +52,6 @@ const char* twistModeHtml = R"rawliteral(
       background-color: #1e272e;
       color: #ffffff;
       outline: none;
-      transition: border-color 0.2s;
-    }
-
-    input[type="number"]:focus,
-    input[type="time"]:focus {
-      border-color: #00bcd4;
     }
 
     .days-box {
@@ -89,12 +83,6 @@ const char* twistModeHtml = R"rawliteral(
       cursor: pointer;
       color: #fff;
       background: linear-gradient(135deg, #009688, #26c6da);
-      transition: 0.2s;
-    }
-
-    button:hover {
-      opacity: 0.9;
-      transform: scale(1.02);
     }
 
     .back-btn {
@@ -113,18 +101,19 @@ const char* twistModeHtml = R"rawliteral(
 <body>
   <div class="container">
     <h1>Twist Mode</h1>
+
     <form id="twistForm">
       <label>On Duration (secs)</label>
-      <input type="number" name="onDuration" min="1" max="600" required />
+      <input type="number" id="onDuration" name="onDuration" min="1" max="600" required />
 
       <label>Off Duration (secs)</label>
-      <input type="number" name="offDuration" min="1" max="600" required />
+      <input type="number" id="offDuration" name="offDuration" min="1" max="600" required />
 
       <label>On Time (HH:MM)</label>
-      <input type="time" name="onTime" required />
+      <input type="time" id="onTime" name="onTime" required />
 
       <label>Off Time (HH:MM)</label>
-      <input type="time" name="offTime" required />
+      <input type="time" id="offTime" name="offTime" required />
 
       <label>Active Days</label>
       <div class="days-box">
@@ -145,42 +134,83 @@ const char* twistModeHtml = R"rawliteral(
     <a href="/"><button type="button" class="back-btn">Back</button></a>
   </div>
 
-  <script>
-    document.getElementById('twistForm').addEventListener('submit', async function(e) {
-      e.preventDefault();
+<script>
 
-      const form = new FormData(this);
-      const params = new URLSearchParams();
+/* ================= LOAD SAVED DATA ================= */
 
-      params.append('onDuration', form.get('onDuration'));
-      params.append('offDuration', form.get('offDuration'));
-      params.append('onTime', form.get('onTime'));
-      params.append('offTime', form.get('offTime'));
+window.onload = async function() {
 
-      // Collect checked days and append individually (mon=1&tue=1...)
-      const selectedDays = [];
-      document.querySelectorAll('input[name="days"]:checked').forEach(cb => {
-        selectedDays.push(cb.value);
-        params.append(cb.value, '1');
+  try {
+    const res = await fetch('/twist/get');
+    const data = await res.json();
+
+    if(data.onDuration)
+      document.getElementById("onDuration").value = data.onDuration;
+
+    if(data.offDuration)
+      document.getElementById("offDuration").value = data.offDuration;
+
+    if(data.onTime)
+      document.getElementById("onTime").value = data.onTime;
+
+    if(data.offTime)
+      document.getElementById("offTime").value = data.offTime;
+
+    if(data.days){
+      const arr = data.days.split(",");
+      document.querySelectorAll('input[name="days"]').forEach(cb=>{
+        if(arr.includes(cb.value)) cb.checked = true;
       });
+    }
 
-      try {
-        const res = await fetch('/twist_submit?' + params.toString());
-        const text = await res.text();
+  } catch(e){
+    console.log("Failed to load twist data");
+  }
+};
 
-        let msg = "Twist Settings Saved\n";
-        msg += `On Duration: ${form.get('onDuration')} sec\n`;
-        msg += `Off Duration: ${form.get('offDuration')} sec\n`;
-        msg += `Time: ${form.get('onTime')} - ${form.get('offTime')}\n`;
-        msg += `Days: ${selectedDays.join(', ') || '-'}`;
-        document.getElementById('message').textContent = msg;
-      } catch {
-        document.getElementById('message').textContent = "Failed to send to ESP.";
-      }
 
-      this.reset();
-    });
-  </script>
+/* ================= SUBMIT ================= */
+
+document.getElementById('twistForm').addEventListener('submit', async function(e) {
+
+  e.preventDefault();
+
+  const form = new FormData(this);
+  const params = new URLSearchParams();
+
+  params.append('onDuration', form.get('onDuration'));
+  params.append('offDuration', form.get('offDuration'));
+  params.append('onTime', form.get('onTime'));
+  params.append('offTime', form.get('offTime'));
+
+  const selectedDays = [];
+
+  document.querySelectorAll('input[name="days"]:checked').forEach(cb => {
+    selectedDays.push(cb.value);
+    params.append(cb.value, '1');
+  });
+
+  try {
+    await fetch('/twist_submit?' + params.toString());
+
+    let msg = "Twist Settings Saved\n";
+    msg += `On Duration: ${form.get('onDuration')} sec\n`;
+    msg += `Off Duration: ${form.get('offDuration')} sec\n`;
+    msg += `Time: ${form.get('onTime')} - ${form.get('offTime')}\n`;
+    msg += `Days: ${selectedDays.join(', ') || '-'}`;
+
+    document.getElementById('message').textContent = msg;
+
+  } catch {
+    document.getElementById('message').textContent = "Failed to send to ESP.";
+  }
+
+  // DO NOT RESET FORM — keep values
+
+});
+
+</script>
+
 </body>
 </html>
 )rawliteral";

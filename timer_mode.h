@@ -23,28 +23,23 @@ const char timerModeHtml[] PROGMEM = R"rawliteral(
   --danger:#ef4444;
   --success:#22c55e;
 }
-
 *{box-sizing:border-box}
-
 body{
   margin:0;
   font-family:Inter,Segoe UI,Arial;
-  background:linear-gradient(135deg,#020617,#020617,#020617);
+  background:#020617;
   color:var(--text);
 }
-
 .wrap{
   max-width:720px;
   margin:auto;
   padding:18px;
 }
-
 h1{
   text-align:center;
   color:var(--primary);
   margin-bottom:18px;
 }
-
 .card{
   background:var(--card);
   border-radius:14px;
@@ -52,25 +47,21 @@ h1{
   margin-bottom:14px;
   box-shadow:0 0 18px rgba(13,202,240,.25);
 }
-
 .slot{
   border-left:4px solid var(--primary);
   padding-left:14px;
   margin-bottom:16px;
 }
-
 .slot-header{
   display:flex;
   justify-content:space-between;
   align-items:center;
 }
-
 .slot-header h3{
   margin:0;
   font-size:18px;
   color:var(--primary);
 }
-
 .toggle{
   appearance:none;
   width:44px;
@@ -80,9 +71,7 @@ h1{
   position:relative;
   cursor:pointer;
 }
-
 .toggle:checked{background:var(--primary)}
-
 .toggle:before{
   content:'';
   position:absolute;
@@ -94,16 +83,13 @@ h1{
   left:3px;
   transition:.2s;
 }
-
 .toggle:checked:before{left:23px}
-
 .days{
   display:flex;
   flex-wrap:wrap;
   gap:6px;
   margin:10px 0;
 }
-
 .day{
   padding:6px 10px;
   border-radius:999px;
@@ -112,19 +98,16 @@ h1{
   font-size:13px;
   border:1px solid #334155;
 }
-
 .day.active{
   background:var(--primary);
   color:#000;
   font-weight:700;
 }
-
 .time-row{
   display:flex;
   gap:12px;
   margin-top:10px;
 }
-
 .time-row input{
   flex:1;
   padding:10px;
@@ -134,11 +117,9 @@ h1{
   color:#fff;
   font-size:15px;
 }
-
 .time-row input:disabled{
   opacity:.4;
 }
-
 button{
   width:100%;
   margin-top:20px;
@@ -151,21 +132,18 @@ button{
   background:linear-gradient(135deg,var(--primary),#0284c7);
   color:#000;
 }
-
 button.secondary{
   background:#020617;
   color:var(--primary);
   border:1px solid var(--primary);
   margin-top:10px;
 }
-
 .result{
   margin-top:14px;
   padding:12px;
   border-radius:10px;
   font-size:14px;
 }
-
 .success{border:1px solid var(--success);color:var(--success)}
 .error{border:1px solid var(--danger);color:var(--danger)}
 </style>
@@ -189,6 +167,7 @@ button.secondary{
 const DAYS=["mon","tue","wed","thu","fri","sat","sun"];
 const form=document.getElementById("timerForm");
 
+/* ================= CREATE SLOTS ================= */
 function makeSlot(n){
   return `
   <div class="card slot">
@@ -204,43 +183,83 @@ function makeSlot(n){
     <div class="time-row">
       <input type="time" id="on${n}" disabled>
       <input type="time" id="off${n}" disabled>
-      <input type="number" id="gap${n}" placeholder="Time Gap (min)" min="0" disabled> <!-- Time gap input -->
+      <input type="number" id="gap${n}" placeholder="Time Gap (min)" min="0" disabled>
     </div>
-
-
   </div>`;
 }
 
 for(let i=1;i<=5;i++) form.insertAdjacentHTML("beforeend",makeSlot(i));
 
-document.querySelectorAll(".toggle").forEach(t => {
-  t.addEventListener("change", () => {
-    const n = t.id.replace("en", "");
-    document.getElementById(`on${n}`).disabled = !t.checked;
-    document.getElementById(`off${n}`).disabled = !t.checked;
-    document.getElementById(`gap${n}`).disabled = !t.checked;  // Enable gap input field when checkbox is checked
-  });
+/* ================= ENABLE TOGGLE ================= */
+document.addEventListener("change", function(e){
+  if(e.target.classList.contains("toggle")){
+    const n = e.target.id.replace("en","");
+    document.getElementById(`on${n}`).disabled = !e.target.checked;
+    document.getElementById(`off${n}`).disabled = !e.target.checked;
+    document.getElementById(`gap${n}`).disabled = !e.target.checked;
+  }
 });
 
-
-document.querySelectorAll(".day").forEach(d=>{
-  d.onclick=()=>d.classList.toggle("active");
+/* ================= DAY SELECT ================= */
+document.addEventListener("click", function(e){
+  if(e.target.classList.contains("day")){
+    e.target.classList.toggle("active");
+  }
 });
 
+/* ================= LOAD SAVED DATA ================= */
+window.onload = function(){
+
+  fetch('/timer/get')
+  .then(res => res.json())
+  .then(data => {
+
+    for(let n=1;n<=5;n++){
+
+      let slot = data["slot"+n];
+      if(!slot) continue;
+
+      if(slot.enabled == 1){
+        document.getElementById(`en${n}`).checked = true;
+        document.getElementById(`on${n}`).disabled = false;
+        document.getElementById(`off${n}`).disabled = false;
+        document.getElementById(`gap${n}`).disabled = false;
+      }
+
+      if(slot.on)  document.getElementById(`on${n}`).value = slot.on;
+      if(slot.off) document.getElementById(`off${n}`).value = slot.off;
+      if(slot.gap !== undefined)
+        document.getElementById(`gap${n}`).value = slot.gap;
+
+      if(slot.days){
+        let arr = slot.days.split(",");
+        arr.forEach(d=>{
+          let el = document.querySelector(`#days${n} .day[data-d='${d}']`);
+          if(el) el.classList.add("active");
+        });
+      }
+    }
+
+  })
+  .catch(err => console.log("Timer load error:", err));
+};
+
+/* ================= SUBMIT ================= */
 form.onsubmit = e => {
   e.preventDefault();
   let q = [], any = false, bad = [];
 
   for (let n = 1; n <= 5; n++) {
-    if (!en(n).checked) continue;
+    if (!document.getElementById(`en${n}`).checked) continue;
     any = true;
 
     let days = [...document.querySelectorAll(`#days${n} .active`)]
                 .map(d => d.dataset.d);
-    let on = val(`on${n}`), off = val(`off${n}`);
-    let gap = val(`gap${n}`);  // Capture the time gap value
+    let on = document.getElementById(`on${n}`).value;
+    let off = document.getElementById(`off${n}`).value;
+    let gap = document.getElementById(`gap${n}`).value;
 
-    if (!days.length || !on || !off || !gap) {
+    if (!days.length || !on || !off || gap==="") {
       bad.push(n);
       continue;
     }
@@ -249,8 +268,7 @@ form.onsubmit = e => {
     q.push(`days${n}=${days.join(",")}`);
     q.push(`on${n}=${on}`);
     q.push(`off${n}=${off}`);
-    q.push(`gap${n}=${gap}`);  // Include gap value in the request
-
+    q.push(`gap${n}=${gap}`);
   }
 
   if (!any) return show("Enable at least one slot", "error");
@@ -262,10 +280,6 @@ form.onsubmit = e => {
     .catch(e => show(e.message, "error"));
 };
 
-
-
-function en(n){return document.getElementById(`en${n}`)}
-function val(id){return document.getElementById(id).value}
 function show(msg,type){
   let r=document.getElementById("result");
   r.className="result "+type;
