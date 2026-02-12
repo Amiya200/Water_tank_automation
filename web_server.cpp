@@ -409,58 +409,43 @@ void start_webserver() {
   // TIMER SET ROUTE — ENABLE + DAYS + ON/OFF SUPPORT
   // ------------------------------------------------------
   server.on("/timer/set", HTTP_GET, []() {
-    String packet = "@TIMER:SET";
-    bool any = false;
-    String summary = "";
+    String answer = "TIMER SLOTS UPDATED:\n\n";
+    char rxBuf[64];
 
     for (int i = 1; i <= 5; i++) {
+
       if (!server.hasArg("slot" + String(i))) continue;
-      any = true;
 
       String days = server.arg("days" + String(i));
       String on = server.arg("on" + String(i));
       String off = server.arg("off" + String(i));
-      int gap = server.arg("gap" + String(i)).toInt();  // Capture time gap
+      int enable = 1;  // slot checked
+      int gap = server.arg("gap" + String(i)).toInt();
 
       int onH = on.substring(0, 2).toInt();
       int onM = on.substring(3, 5).toInt();
       int offH = off.substring(0, 2).toInt();
       int offM = off.substring(3, 5).toInt();
 
-      packet += ":" + String(i) + ":" + days + ":" + String(onH) + ":" + String(onM) + ":" + String(offH) + ":" + String(offM) + ":" + String(gap);  // Include time gap
+      // Build SINGLE SLOT PACKET
+      String pkt = "@TIMER:SET:" + String(i) + ":" + days + ":" + String(onH) + ":" + String(onM) + ":" + String(offH) + ":" + String(offM) + ":" + String(enable) + ":" + String(gap) + "#";
 
-      summary += "• Slot " + String(i) + " | Days: " + days + " | " + on + " → " + off + " | Gap: " + String(gap) + " min\n";
-    }
+      ws_sendPacketToSTM32(pkt);
 
-
-
-
-    if (!any) {
-      server.send(400, "text/plain", "No valid slot selected");
-      return;
-    }
-
-    packet += "#";
-    ws_sendPacketToSTM32(packet);
-
-    char rxBuf[128];
-    String resp = "";
-    unsigned long start = millis();
-
-    while (millis() - start < 400) {
-      if (esp_uart_receive(rxBuf, sizeof(rxBuf), 10)) {
-        resp = rxBuf;
-        break;
+      // wait ACK
+      unsigned long t = millis();
+      String resp = "";
+      while (millis() - t < 300) {
+        if (esp_uart_receive(rxBuf, sizeof(rxBuf), 10)) {
+          resp = rxBuf;
+          break;
+        }
       }
-      delay(1);
+
+      answer += "Slot " + String(i) + " → " + pkt + "\nACK: " + resp + "\n\n";
     }
 
     ws_requestStatus();
-
-    String answer = "TIMER UPDATED SUCCESSFULLY:\n\n";
-    answer += summary;
-    answer += "\nSTM32 Response: " + resp;
-
     server.send(200, "text/plain", answer);
   });
 
