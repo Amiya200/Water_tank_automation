@@ -161,6 +161,12 @@ input:checked + .slider:before {
   opacity:0.5;
   pointer-events:none;
 }
+
+.blur-disabled{
+  opacity:0.6;          /* lighter fade */
+  filter:blur(0.3px);   /* very subtle blur */
+  transition:0.2s ease;
+}
 </style>
 </head>
 
@@ -271,7 +277,7 @@ input:checked + .slider:before {
 <option value="2">Restore Previous</option>
 </select>
 <label class="switch">
-<input type="checkbox" id="powerRestore_en">
+<input type="checkbox" id="powerRestore_en" onchange="toggleInput('powerRestore','powerRestore_en')">
 <span class="slider"></span>
 </label>
 </div>
@@ -286,13 +292,13 @@ input:checked + .slider:before {
 <div class="setting-left">Main Buzzer</div>
 <div class="setting-right">
 <label class="switch">
-<input type="checkbox" id="buzzerEnable">
+<input type="checkbox" id="buzzerEnable" onchange="updateBuzzerOptions()">
 <span class="slider"></span>
 </label>
 </div>
 </div>
 
-<div class="setting-row">
+<div class="setting-row" id="rowTankFull">
 <div class="setting-left">Water Tank Full Alert</div>
 <div class="setting-right">
 <label class="switch">
@@ -302,7 +308,7 @@ input:checked + .slider:before {
 </div>
 </div>
 
-<div class="setting-row">
+<div class="setting-row" id="rowTankEmpty">
 <div class="setting-left">Water Tank Empty Alert</div>
 <div class="setting-right">
 <label class="switch">
@@ -312,7 +318,7 @@ input:checked + .slider:before {
 </div>
 </div>
 
-<div class="setting-row">
+<div class="setting-row" id="rowMotorRunning">
 <div class="setting-left">Motor Running Alert</div>
 <div class="setting-right">
 <label class="switch">
@@ -371,6 +377,8 @@ if(id.endsWith("_en"))
 toggleInput(id.replace("_en",""),id);
 });
 
+updateBuzzerOptions();
+
 document.getElementById("status").innerText="Ready";
 
 })
@@ -386,6 +394,32 @@ if(!toggle.checked)
 input.classList.add("disabled-input");
 else
 input.classList.remove("disabled-input");
+}
+
+function updateBuzzerOptions(){
+
+let main=document.getElementById("buzzerEnable").checked;
+
+let items=[
+{checkbox:"buzzerTankFull",row:"rowTankFull"},
+{checkbox:"buzzerTankEmpty",row:"rowTankEmpty"},
+{checkbox:"buzzerMotorRunning",row:"rowMotorRunning"}
+];
+
+items.forEach(item=>{
+let el=document.getElementById(item.checkbox);
+let row=document.getElementById(item.row);
+
+if(!main){
+el.checked=false;
+el.disabled=true;
+row.classList.add("blur-disabled");
+}else{
+el.disabled=false;
+row.classList.remove("blur-disabled");
+}
+});
+
 }
 
 function apply(){
