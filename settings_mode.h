@@ -16,74 +16,122 @@ const char* settingsModeHtml = R"rawliteral(
   --success:#16a34a;
   --bg1:#eef2ff;
   --bg2:#fdf4ff;
-  --card:#ffffff;
   --border:#e5e7eb;
   --text:#0f172a;
-  --muted:#64748b;
 }
+
 *{box-sizing:border-box}
 
 body{
   margin:0;
-  font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+  font-family:Segoe UI,Roboto,Arial,sans-serif;
   background:linear-gradient(135deg,var(--bg1),var(--bg2));
   color:var(--text);
 }
 
-.wrap{max-width:920px;margin:32px auto;padding:16px;}
+.wrap{max-width:1050px;margin:30px auto;padding:15px;}
 
 .card{
-  background:linear-gradient(180deg,#ffffff,#f9fafb);
-  border-radius:22px;
-  padding:26px;
+  background:#ffffff;
+  border-radius:20px;
+  padding:32px;
   box-shadow:0 20px 40px rgba(0,0,0,.08);
 }
 
 .section{
-  margin-top:30px;
-  padding:22px;
-  border-radius:18px;
+  margin-top:28px;
+  padding:24px;
+  border-radius:16px;
   background:#ffffff;
   border:1px solid var(--border);
 }
 
 .section-title{
-  font-size:16px;
-  font-weight:800;
-  margin-bottom:16px;
+  font-size:18px;
+  font-weight:700;
+  margin-bottom:20px;
+  color:var(--primary);
 }
 
-.row{display:flex;gap:18px;flex-wrap:wrap;}
-.col{flex:1;min-width:180px;}
+.setting-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+  margin-bottom:16px;
+  flex-wrap:wrap;
+}
 
-label{
-  font-size:13px;
-  font-weight:700;
-  display:block;
-  margin-bottom:6px;
+.setting-left{
+  flex:1;
+  min-width:200px;
+}
+
+.setting-right{
+  display:flex;
+  align-items:center;
+  gap:12px;
 }
 
 input,select{
-  width:100%;
   padding:10px;
-  border-radius:12px;
+  border-radius:10px;
   border:1px solid var(--border);
-  margin-bottom:8px;
+  width:140px;
+}
+
+/* Toggle */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+}
+
+.switch input { display:none; }
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #ccc;
+  transition: .3s;
+  border-radius: 30px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background:linear-gradient(135deg,var(--primary),var(--primary2));
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
 }
 
 .actions{
   display:flex;
   justify-content:space-between;
-  margin-top:30px;
+  margin-top:35px;
   gap:12px;
   flex-wrap:wrap;
 }
 
 .btn{
-  padding:14px 26px;
-  border-radius:16px;
+  padding:14px 30px;
+  border-radius:14px;
   border:none;
-  font-weight:800;
+  font-weight:700;
   cursor:pointer;
 }
 
@@ -100,14 +148,19 @@ input,select{
 
 .status{
   margin-top:20px;
-  padding:16px;
-  border-radius:16px;
-  background:#fff;
+  padding:14px;
+  border-radius:12px;
   border:1px solid var(--border);
+  background:#fff;
 }
 
 .status.success{color:var(--success)}
 .status.error{color:var(--danger)}
+
+.disabled-input{
+  opacity:0.5;
+  pointer-events:none;
+}
 </style>
 </head>
 
@@ -117,116 +170,161 @@ input,select{
 
 <h2>Device Settings</h2>
 
-<!-- ================= DEVICE PROTECTION ================= -->
+<!-- DEVICE PROTECTION -->
 <div class="section">
 <div class="section-title">Device Protection</div>
 
-<div class="row">
-<div class="col">
-<label>Dry Run Gap (minutes)</label>
-<input id="dryRunGap" type="number">
-<select id="dryRunGap_en">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
-</div>
-
-<div class="col">
-<label>Testing Gap (minutes)</label>
-<input id="testingGap" type="number">
-<select id="testingGap_en">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
-</div>
-
-<div class="col">
-<label>Maximum Run Time (minutes)</label>
-<input id="maxRun" type="number">
-<select id="maxRun_en">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
-</div>
+<div class="setting-row">
+<div class="setting-left">Dry Run Gap (minutes)</div>
+<div class="setting-right">
+<input type="number" id="dryRunGap">
+<label class="switch">
+<input type="checkbox" id="dryRunGap_en" onchange="toggleInput('dryRunGap','dryRunGap_en')">
+<span class="slider"></span>
+</label>
 </div>
 </div>
 
-<!-- ================= VOLTAGE AND LOAD ================= -->
+<div class="setting-row">
+<div class="setting-left">Testing Gap (minutes)</div>
+<div class="setting-right">
+<input type="number" id="testingGap">
+<label class="switch">
+<input type="checkbox" id="testingGap_en" onchange="toggleInput('testingGap','testingGap_en')">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+<div class="setting-row">
+<div class="setting-left">Maximum Run Time (minutes)</div>
+<div class="setting-right">
+<input type="number" id="maxRun">
+<label class="switch">
+<input type="checkbox" id="maxRun_en" onchange="toggleInput('maxRun','maxRun_en')">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+</div>
+
+<!-- VOLTAGE SETTINGS -->
 <div class="section">
 <div class="section-title">Voltage and Load Limits</div>
 
-<div class="row">
-<div class="col">
-<label>Low Voltage Cutoff</label>
-<input id="lowVolt" type="number">
-<select id="lowVolt_en">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
-</div>
-
-<div class="col">
-<label>High Voltage Cutoff</label>
-<input id="highVolt" type="number">
-<select id="highVolt_en">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
+<div class="setting-row">
+<div class="setting-left">Low Voltage Cutoff</div>
+<div class="setting-right">
+<input type="number" id="lowVolt">
+<label class="switch">
+<input type="checkbox" id="lowVolt_en" onchange="toggleInput('lowVolt','lowVolt_en')">
+<span class="slider"></span>
+</label>
 </div>
 </div>
 
-<div class="row">
-<div class="col">
-<label>Over Load Current</label>
-<input id="overLoad" type="number">
-<select id="overLoad_en">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
-</div>
-
-<div class="col">
-<label>Under Load Current</label>
-<input id="underLoad" type="number">
-<select id="underLoad_en">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
-</div>
+<div class="setting-row">
+<div class="setting-left">High Voltage Cutoff</div>
+<div class="setting-right">
+<input type="number" id="highVolt">
+<label class="switch">
+<input type="checkbox" id="highVolt_en" onchange="toggleInput('highVolt','highVolt_en')">
+<span class="slider"></span>
+</label>
 </div>
 </div>
 
-<!-- ================= POWER RESTORE ================= -->
+<div class="setting-row">
+<div class="setting-left">Over Load Current</div>
+<div class="setting-right">
+<input type="number" id="overLoad">
+<label class="switch">
+<input type="checkbox" id="overLoad_en" onchange="toggleInput('overLoad','overLoad_en')">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+<div class="setting-row">
+<div class="setting-left">Under Load Current</div>
+<div class="setting-right">
+<input type="number" id="underLoad">
+<label class="switch">
+<input type="checkbox" id="underLoad_en" onchange="toggleInput('underLoad','underLoad_en')">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+</div>
+
+<!-- POWER RESTORE -->
 <div class="section">
 <div class="section-title">Power Restore Behaviour</div>
+<div class="setting-row">
+<div class="setting-left">Power Restore Mode</div>
+<div class="setting-right">
 <select id="powerRestore">
 <option value="0">Always ON</option>
 <option value="1">Stay OFF</option>
 <option value="2">Restore Previous</option>
 </select>
+<label class="switch">
+<input type="checkbox" id="powerRestore_en">
+<span class="slider"></span>
+</label>
+</div>
+</div>
 </div>
 
-<!-- ================= BUZZER ================= -->
+<!-- BUZZER SETTINGS -->
 <div class="section">
-<div class="section-title">Buzzer Settings</div>
+<div class="section-title">Buzzer Control</div>
 
-<div class="row">
-<div class="col">
-<label>Buzzer Enable</label>
-<select id="buzzerEnable">
-<option value="1">Enable</option>
-<option value="0">Disable</option>
-</select>
-</div>
-
-<div class="col">
-<label>Manual Test</label>
-<button class="btn btn-primary" onclick="testBuzzer()">Activate Buzzer</button>
-</div>
+<div class="setting-row">
+<div class="setting-left">Main Buzzer</div>
+<div class="setting-right">
+<label class="switch">
+<input type="checkbox" id="buzzerEnable">
+<span class="slider"></span>
+</label>
 </div>
 </div>
 
-<!-- ================= ACTION BUTTONS ================= -->
+<div class="setting-row">
+<div class="setting-left">Water Tank Full Alert</div>
+<div class="setting-right">
+<label class="switch">
+<input type="checkbox" id="buzzerTankFull">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+<div class="setting-row">
+<div class="setting-left">Water Tank Empty Alert</div>
+<div class="setting-right">
+<label class="switch">
+<input type="checkbox" id="buzzerTankEmpty">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+<div class="setting-row">
+<div class="setting-left">Motor Running Alert</div>
+<div class="setting-right">
+<label class="switch">
+<input type="checkbox" id="buzzerMotorRunning">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+</div>
+
+<!-- ACTIONS -->
 <div class="actions">
 <button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
 <button id="applyBtn" class="btn btn-primary" onclick="apply()">Apply Settings</button>
@@ -241,93 +339,102 @@ input,select{
 
 window.onload = function(){
 
-  fetch('/settings/get')
-  .then(res => res.json())
-  .then(data => {
+fetch('/settings/get')
+.then(res=>res.json())
+.then(data=>{
 
-    let ids = [
-      "dryRunGap","dryRunGap_en",
-      "testingGap","testingGap_en",
-      "maxRun","maxRun_en",
-      "lowVolt","lowVolt_en",
-      "highVolt","highVolt_en",
-      "overLoad","overLoad_en",
-      "underLoad","underLoad_en",
-      "powerRestore",
-      "buzzerEnable"
-    ];
+let ids=[
+"dryRunGap","dryRunGap_en",
+"testingGap","testingGap_en",
+"maxRun","maxRun_en",
+"lowVolt","lowVolt_en",
+"highVolt","highVolt_en",
+"overLoad","overLoad_en",
+"underLoad","underLoad_en",
+"powerRestore","powerRestore_en",
+"buzzerEnable","buzzerTankFull",
+"buzzerTankEmpty","buzzerMotorRunning"
+];
 
-    ids.forEach(id=>{
-      if(data[id] !== undefined){
-        document.getElementById(id).value = data[id];
-      }
-    });
+ids.forEach(id=>{
+if(data[id]!==undefined){
+let el=document.getElementById(id);
+if(el.type==="checkbox")
+el.checked=data[id]==1;
+else
+el.value=data[id];
+}
+});
 
-    document.getElementById("status").innerText="Ready";
-  })
-  .catch(()=>{
-    document.getElementById("status").innerText="Failed to load settings";
-  });
+ids.forEach(id=>{
+if(id.endsWith("_en"))
+toggleInput(id.replace("_en",""),id);
+});
+
+document.getElementById("status").innerText="Ready";
+
+})
+.catch(()=>{
+document.getElementById("status").innerText="Failed to load settings";
+});
 };
 
+function toggleInput(inputId,toggleId){
+let input=document.getElementById(inputId);
+let toggle=document.getElementById(toggleId);
+if(!toggle.checked)
+input.classList.add("disabled-input");
+else
+input.classList.remove("disabled-input");
+}
 
 function apply(){
 
-  const btn=document.getElementById("applyBtn");
-  const status=document.getElementById("status");
+const btn=document.getElementById("applyBtn");
+const status=document.getElementById("status");
 
-  let keys=[
-    "dryRunGap","dryRunGap_en",
-    "testingGap","testingGap_en",
-    "maxRun","maxRun_en",
-    "lowVolt","lowVolt_en",
-    "highVolt","highVolt_en",
-    "overLoad","overLoad_en",
-    "underLoad","underLoad_en",
-    "powerRestore",
-    "buzzerEnable"
-  ];
+let ids=[
+"dryRunGap","dryRunGap_en",
+"testingGap","testingGap_en",
+"maxRun","maxRun_en",
+"lowVolt","lowVolt_en",
+"highVolt","highVolt_en",
+"overLoad","overLoad_en",
+"underLoad","underLoad_en",
+"powerRestore","powerRestore_en",
+"buzzerEnable","buzzerTankFull",
+"buzzerTankEmpty","buzzerMotorRunning"
+];
 
-  let p=[];
+let p=[];
 
-  for(let k of keys){
-    let el=document.getElementById(k);
-    if(!el) continue;
-    let val=el.value;
-    p.push(k+"="+val);
-  }
+ids.forEach(id=>{
+let el=document.getElementById(id);
+let val=(el.type==="checkbox")?(el.checked?1:0):el.value;
+p.push(id+"="+val);
+});
 
-  btn.disabled=true;
-  status.className="status";
-  status.innerText="Sending settings...";
+btn.disabled=true;
+status.innerText="Saving settings...";
 
-  fetch("/settings/set?data="+encodeURIComponent(p.join(";")))
-  .then(r=>r.text())
-  .then(t=>{
-    status.className="status success";
-    status.innerText=t;
-  })
-  .catch(()=>{
-    status.className="status error";
-    status.innerText="Failed to send settings";
-  })
-  .finally(()=>btn.disabled=false);
+fetch("/settings/set?data="+encodeURIComponent(p.join(";")))
+.then(r=>r.text())
+.then(t=>{
+status.className="status success";
+status.innerText=t;
+})
+.catch(()=>{
+status.className="status error";
+status.innerText="Failed to save settings";
+})
+.finally(()=>btn.disabled=false);
 }
-
 
 function factoryReset(){
-  if(confirm("Reset device to factory default?")){
-    fetch("/factory_reset")
-    .then(()=>alert("Device reset completed"));
-  }
+if(confirm("Reset device to factory default?")){
+fetch("/factory_reset")
+.then(()=>alert("Device reset completed"));
 }
-
-
-function testBuzzer(){
-  fetch("/buzzer_test")
-  .then(r=>r.text())
-  .then(t=>alert(t))
-  .catch(()=>alert("Buzzer test failed"));
 }
 
 </script>

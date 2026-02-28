@@ -15,7 +15,6 @@ static unsigned long s_lastStatusRequest = 0;
   #define DBG_PRINT(...)
   #define DBG_PRINTLN(...)
 #endif
-
 void esp_uart_init() {
   Serial.begin(ESP_UART_BAUD_RATE);
   Serial.setTimeout(10);
@@ -24,7 +23,6 @@ void esp_uart_init() {
   s_lastStatusRequest = millis();
   DBG_PRINTLN("UART Init OK");
 }
-
 void esp_uart_send(const char *message) {
   if (!message || !*message) return;
   String pkt = message;
@@ -39,7 +37,6 @@ void esp_uart_send(const char *message) {
   Serial.println(pkt);
 #endif
 }
-
 bool esp_uart_receive(char *buffer, size_t bufferSize, unsigned long timeoutMs /* = 0 */) {
   unsigned long start = millis();
   bool packetReceived = false;
@@ -84,13 +81,11 @@ bool esp_uart_receive(char *buffer, size_t bufferSize, unsigned long timeoutMs /
   drainSerialOnce();
   return packetReceived;
 }
-
 void esp_uart_requestStatus() {
   esp_uart_send("STATUS");
   s_lastStatusRequest = millis();
   DBG_PRINTLN("Requested @STATUS#");
 }
-
 void esp_uart_autoStatusRequest() {
   unsigned long now = millis();
   unsigned long interval =
@@ -102,7 +97,6 @@ void esp_uart_autoStatusRequest() {
     DBG_PRINTLN(g_motorStatus);
   }
 }
-
 static void esp_uart_parseSettingsAndLog(const String &kvStr) {
   if (kvStr.length() == 0) return;
   int start = 0;
