@@ -17,7 +17,6 @@ const char* twistModeHtml = R"rawliteral(
       justify-content: center;
       align-items: center;
     }
-
     .container {
       width: 90%;
       max-width: 420px;
@@ -27,21 +26,18 @@ const char* twistModeHtml = R"rawliteral(
       box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       backdrop-filter: blur(8px);
     }
-
     h1 {
       text-align: center;
       color: #00bcd4;
       margin-bottom: 20px;
       font-weight: 600;
     }
-
     label {
       display: block;
       margin-top: 10px;
       margin-bottom: 4px;
       font-weight: 500;
     }
-
     input[type="number"],
     input[type="time"] {
       width: 100%;
@@ -53,13 +49,11 @@ const char* twistModeHtml = R"rawliteral(
       color: #ffffff;
       outline: none;
     }
-
     .days-box {
       display: flex;
       flex-wrap: wrap;
       margin-top: 8px;
     }
-
     .days-box label {
       flex: 1 1 33%;
       display: flex;
@@ -67,12 +61,10 @@ const char* twistModeHtml = R"rawliteral(
       font-size: 15px;
       margin-bottom: 6px;
     }
-
     input[type="checkbox"] {
       margin-right: 8px;
       transform: scale(1.2);
     }
-
     button {
       width: 100%;
       padding: 12px;
@@ -84,11 +76,9 @@ const char* twistModeHtml = R"rawliteral(
       color: #fff;
       background: linear-gradient(135deg, #009688, #26c6da);
     }
-
     .back-btn {
       background: linear-gradient(135deg, #1565c0, #42a5f5);
     }
-
     #message {
       margin-top: 16px;
       white-space: pre-wrap;
@@ -101,20 +91,15 @@ const char* twistModeHtml = R"rawliteral(
 <body>
   <div class="container">
     <h1>Twist Mode</h1>
-
     <form id="twistForm">
       <label>On Duration (secs)</label>
       <input type="number" id="onDuration" name="onDuration" min="1" max="600" required />
-
       <label>Off Duration (secs)</label>
       <input type="number" id="offDuration" name="offDuration" min="1" max="600" required />
-
       <label>On Time (HH:MM)</label>
       <input type="time" id="onTime" name="onTime" required />
-
       <label>Off Time (HH:MM)</label>
       <input type="time" id="offTime" name="offTime" required />
-
       <label>Active Days</label>
       <div class="days-box">
         <label><input type="checkbox" name="days" value="mon">Mon</label>
@@ -125,92 +110,63 @@ const char* twistModeHtml = R"rawliteral(
         <label><input type="checkbox" name="days" value="sat">Sat</label>
         <label><input type="checkbox" name="days" value="sun">Sun</label>
       </div>
-
       <button type="submit">Save</button>
     </form>
-
     <p id="message"></p>
-
     <a href="/"><button type="button" class="back-btn">Back</button></a>
   </div>
 
 <script>
 
-/* ================= LOAD SAVED DATA ================= */
-
 window.onload = async function() {
-
   try {
     const res = await fetch('/twist/get');
     const data = await res.json();
-
     if(data.onDuration)
       document.getElementById("onDuration").value = data.onDuration;
-
     if(data.offDuration)
       document.getElementById("offDuration").value = data.offDuration;
-
     if(data.onTime)
       document.getElementById("onTime").value = data.onTime;
-
     if(data.offTime)
       document.getElementById("offTime").value = data.offTime;
-
     if(data.days){
       const arr = data.days.split(",");
       document.querySelectorAll('input[name="days"]').forEach(cb=>{
         if(arr.includes(cb.value)) cb.checked = true;
       });
     }
-
   } catch(e){
     console.log("Failed to load twist data");
   }
 };
 
-
-/* ================= SUBMIT ================= */
-
 document.getElementById('twistForm').addEventListener('submit', async function(e) {
-
   e.preventDefault();
-
   const form = new FormData(this);
   const params = new URLSearchParams();
-
   params.append('onDuration', form.get('onDuration'));
   params.append('offDuration', form.get('offDuration'));
   params.append('onTime', form.get('onTime'));
   params.append('offTime', form.get('offTime'));
-
   const selectedDays = [];
-
   document.querySelectorAll('input[name="days"]:checked').forEach(cb => {
     selectedDays.push(cb.value);
     params.append(cb.value, '1');
   });
-
   try {
     await fetch('/twist_submit?' + params.toString());
-
     let msg = "Twist Settings Saved\n";
     msg += `On Duration: ${form.get('onDuration')} sec\n`;
     msg += `Off Duration: ${form.get('offDuration')} sec\n`;
     msg += `Time: ${form.get('onTime')} - ${form.get('offTime')}\n`;
     msg += `Days: ${selectedDays.join(', ') || '-'}`;
-
     document.getElementById('message').textContent = msg;
-
   } catch {
     document.getElementById('message').textContent = "Failed to send to ESP.";
   }
-
-  // DO NOT RESET FORM — keep values
-
 });
-
 </script>
-
 </body>
 </html>
 )rawliteral";

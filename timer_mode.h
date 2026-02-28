@@ -1,18 +1,14 @@
 #ifndef TIMER_MODE_H
 #define TIMER_MODE_H
-
 #include <Arduino.h>
-
 #if defined(ESP8266)
 #include <pgmspace.h>
-
 const char timerModeHtml[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
 <title>Timer Mode</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-
 <style>
 :root{
   --primary:#0dcaf0;
@@ -148,26 +144,17 @@ button.secondary{
 .error{border:1px solid var(--danger);color:var(--danger)}
 </style>
 </head>
-
 <body>
 <div class="wrap">
-
 <h1>Timer Mode</h1>
-
 <form id="timerForm"></form>
-
 <button type="submit" form="timerForm">Save Timer Settings</button>
 <button type="button" class="secondary" onclick="location.href='/'">Back</button>
-
 <div id="result" class="result"></div>
-
 </div>
-
 <script>
 const DAYS=["mon","tue","wed","thu","fri","sat","sun"];
 const form=document.getElementById("timerForm");
-
-/* ================= CREATE SLOTS ================= */
 function makeSlot(n){
   return `
   <div class="card slot">
@@ -175,11 +162,9 @@ function makeSlot(n){
       <h3>Slot ${n}</h3>
       <input type="checkbox" class="toggle" id="en${n}">
     </div>
-
     <div class="days" id="days${n}">
       ${DAYS.map(d=>`<div class="day" data-d="${d}">${d.toUpperCase()}</div>`).join("")}
     </div>
-
     <div class="time-row">
       <input type="time" id="on${n}" disabled>
       <input type="time" id="off${n}" disabled>
@@ -187,10 +172,7 @@ function makeSlot(n){
     </div>
   </div>`;
 }
-
 for(let i=1;i<=5;i++) form.insertAdjacentHTML("beforeend",makeSlot(i));
-
-/* ================= ENABLE TOGGLE ================= */
 document.addEventListener("change", function(e){
   if(e.target.classList.contains("toggle")){
     const n = e.target.id.replace("en","");
@@ -199,38 +181,28 @@ document.addEventListener("change", function(e){
     document.getElementById(`gap${n}`).disabled = !e.target.checked;
   }
 });
-
-/* ================= DAY SELECT ================= */
 document.addEventListener("click", function(e){
   if(e.target.classList.contains("day")){
     e.target.classList.toggle("active");
   }
 });
-
-/* ================= LOAD SAVED DATA ================= */
 window.onload = function(){
-
   fetch('/timer/get')
   .then(res => res.json())
   .then(data => {
-
     for(let n=1;n<=5;n++){
-
       let slot = data["slot"+n];
       if(!slot) continue;
-
       if(slot.enabled == 1){
         document.getElementById(`en${n}`).checked = true;
         document.getElementById(`on${n}`).disabled = false;
         document.getElementById(`off${n}`).disabled = false;
         document.getElementById(`gap${n}`).disabled = false;
       }
-
       if(slot.on)  document.getElementById(`on${n}`).value = slot.on;
       if(slot.off) document.getElementById(`off${n}`).value = slot.off;
       if(slot.gap !== undefined)
         document.getElementById(`gap${n}`).value = slot.gap;
-
       if(slot.days){
         let arr = slot.days.split(",");
         arr.forEach(d=>{
@@ -239,12 +211,9 @@ window.onload = function(){
         });
       }
     }
-
   })
   .catch(err => console.log("Timer load error:", err));
 };
-
-/* ================= SUBMIT ================= */
 form.onsubmit = e => {
   e.preventDefault();
   let q = [], any = false, bad = [];
@@ -252,47 +221,38 @@ form.onsubmit = e => {
   for (let n = 1; n <= 5; n++) {
     if (!document.getElementById(`en${n}`).checked) continue;
     any = true;
-
     let days = [...document.querySelectorAll(`#days${n} .active`)]
                 .map(d => d.dataset.d);
     let on = document.getElementById(`on${n}`).value;
     let off = document.getElementById(`off${n}`).value;
     let gap = document.getElementById(`gap${n}`).value;
-
     if (!days.length || !on || !off || gap==="") {
       bad.push(n);
       continue;
     }
-
     q.push(`slot${n}=1`);
     q.push(`days${n}=${days.join(",")}`);
     q.push(`on${n}=${on}`);
     q.push(`off${n}=${off}`);
     q.push(`gap${n}=${gap}`);
   }
-
   if (!any) return show("Enable at least one slot", "error");
   if (bad.length) return show("Incomplete slot(s): " + bad.join(","), "error");
-
   fetch("/timer/set?" + q.join("&"))
     .then(r => r.text())
     .then(t => show(t, "success"))
     .catch(e => show(e.message, "error"));
 };
-
 function show(msg,type){
   let r=document.getElementById("result");
   r.className="result "+type;
   r.innerText=msg;
 }
 </script>
-
 </body>
 </html>
 )rawliteral";
-
 #else
 const char* timerModeHtml = "";
 #endif
-
 #endif

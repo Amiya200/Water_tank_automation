@@ -17,7 +17,6 @@ const char* countdownModeHtml = R"rawliteral(
       justify-content: center;
       align-items: center;
     }
-
     .container {
       width: 90%;
       max-width: 420px;
@@ -27,21 +26,18 @@ const char* countdownModeHtml = R"rawliteral(
       box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       backdrop-filter: blur(8px);
     }
-
     h1 {
       text-align: center;
       color: #00bcd4;
       margin-bottom: 24px;
       font-weight: 600;
     }
-
     label { 
       display: block;
       margin-bottom: 8px;
       font-weight: 500;
       color: #d1d5db;
     }
-
     input[type="number"] {
       width: 100%;
       padding: 12px;
@@ -54,11 +50,9 @@ const char* countdownModeHtml = R"rawliteral(
       outline: none;
       transition: border-color 0.2s;
     }
-
     input[type="number"]:focus {
       border-color: #00bcd4;
     }
-
     .button {
       display: block;
       width: 100%;
@@ -71,27 +65,22 @@ const char* countdownModeHtml = R"rawliteral(
       cursor: pointer;
       transition: all 0.2s ease-in-out;
     }
-
     .button.stop {
       background: linear-gradient(135deg, #f44336, #e57373);
     }
-
     .button:hover { 
       opacity: 0.95;
       transform: scale(1.02);
     }
-
     #message, #countdownDisplay {
       margin-top: 16px;
       font-size: 16px;
       text-align: center;
     }
-
     #countdownDisplay {
       color: #00e676;
       font-weight: 600;
     }
-
     .back-btn {
       margin-top: 24px;
       background: linear-gradient(135deg, #1565c0, #42a5f5);
@@ -101,30 +90,24 @@ const char* countdownModeHtml = R"rawliteral(
 <body>
   <div class="container">
     <h1>Countdown Mode</h1>
-
     <form id="countdownForm">
       <label>Duration (minutes)</label>
       <input type="number" id="duration" name="duration" min="1" max="180" required />
       <button type="button" id="toggleBtn" class="button" onclick="startCountdown()">Start</button>
     </form>
-
     <p id="countdownDisplay">Waiting for input...</p>
     <p id="message"></p>
-
     <a href="/"><button class="button back-btn" type="button">Back</button></a>
   </div>
-
   <script>
     let remaining = 0;
     let interval = null;
-
     async function startCountdown() {
       const mins = parseInt(document.getElementById("duration").value);
       if (!mins || mins < 1 || mins > 180) {
         alert("Please enter a valid duration between 1 and 180 minutes.");
         return;
       }
-
       try {
         const res = await fetch(`/start_countdown?duration=${mins}`);
         const msg = await res.text();
@@ -135,7 +118,6 @@ const char* countdownModeHtml = R"rawliteral(
         document.getElementById("message").textContent = "Failed to communicate with device.";
       }
     }
-
     function startCountdownDisplay() {
       clearInterval(interval);
       interval = setInterval(() => {

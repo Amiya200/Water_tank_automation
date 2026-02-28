@@ -10,5 +10,5 @@ void setup() {
 }
 
 void loop() {
-  handleClient();   // <- this now also polls UART and updates web vars
+  handleClient();  
 }
