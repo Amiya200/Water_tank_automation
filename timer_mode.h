@@ -1,8 +1,10 @@
 #ifndef TIMER_MODE_H
 #define TIMER_MODE_H
 #include <Arduino.h>
+
 #if defined(ESP8266)
 #include <pgmspace.h>
+
 const char timerModeHtml[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -152,9 +154,11 @@ button.secondary{
 <button type="button" class="secondary" onclick="location.href='/'">Back</button>
 <div id="result" class="result"></div>
 </div>
+
 <script>
 const DAYS=["mon","tue","wed","thu","fri","sat","sun"];
 const form=document.getElementById("timerForm");
+
 function makeSlot(n){
   return `
   <div class="card slot">
@@ -168,24 +172,27 @@ function makeSlot(n){
     <div class="time-row">
       <input type="time" id="on${n}" disabled>
       <input type="time" id="off${n}" disabled>
-      <input type="number" id="gap${n}" placeholder="Time Gap (min)" min="0" disabled>
     </div>
   </div>`;
 }
-for(let i=1;i<=5;i++) form.insertAdjacentHTML("beforeend",makeSlot(i));
+
+for(let i=1;i<=5;i++) 
+  form.insertAdjacentHTML("beforeend",makeSlot(i));
+
 document.addEventListener("change", function(e){
   if(e.target.classList.contains("toggle")){
     const n = e.target.id.replace("en","");
     document.getElementById(`on${n}`).disabled = !e.target.checked;
     document.getElementById(`off${n}`).disabled = !e.target.checked;
-    document.getElementById(`gap${n}`).disabled = !e.target.checked;
   }
 });
+
 document.addEventListener("click", function(e){
   if(e.target.classList.contains("day")){
     e.target.classList.toggle("active");
   }
 });
+
 window.onload = function(){
   fetch('/timer/get')
   .then(res => res.json())
@@ -193,16 +200,16 @@ window.onload = function(){
     for(let n=1;n<=5;n++){
       let slot = data["slot"+n];
       if(!slot) continue;
+
       if(slot.enabled == 1){
         document.getElementById(`en${n}`).checked = true;
         document.getElementById(`on${n}`).disabled = false;
         document.getElementById(`off${n}`).disabled = false;
-        document.getElementById(`gap${n}`).disabled = false;
       }
+
       if(slot.on)  document.getElementById(`on${n}`).value = slot.on;
       if(slot.off) document.getElementById(`off${n}`).value = slot.off;
-      if(slot.gap !== undefined)
-        document.getElementById(`gap${n}`).value = slot.gap;
+
       if(slot.days){
         let arr = slot.days.split(",");
         arr.forEach(d=>{
@@ -214,44 +221,51 @@ window.onload = function(){
   })
   .catch(err => console.log("Timer load error:", err));
 };
+
 form.onsubmit = e => {
   e.preventDefault();
   let q = [], any = false, bad = [];
 
   for (let n = 1; n <= 5; n++) {
     if (!document.getElementById(`en${n}`).checked) continue;
+
     any = true;
     let days = [...document.querySelectorAll(`#days${n} .active`)]
                 .map(d => d.dataset.d);
     let on = document.getElementById(`on${n}`).value;
     let off = document.getElementById(`off${n}`).value;
-    let gap = document.getElementById(`gap${n}`).value;
-    if (!days.length || !on || !off || gap==="") {
+
+    if (!days.length || !on || !off) {
       bad.push(n);
       continue;
     }
+
     q.push(`slot${n}=1`);
     q.push(`days${n}=${days.join(",")}`);
     q.push(`on${n}=${on}`);
     q.push(`off${n}=${off}`);
-    q.push(`gap${n}=${gap}`);
   }
+
   if (!any) return show("Enable at least one slot", "error");
   if (bad.length) return show("Incomplete slot(s): " + bad.join(","), "error");
+
   fetch("/timer/set?" + q.join("&"))
     .then(r => r.text())
     .then(t => show(t, "success"))
     .catch(e => show(e.message, "error"));
 };
+
 function show(msg,type){
   let r=document.getElementById("result");
   r.className="result "+type;
   r.innerText=msg;
 }
 </script>
+
 </body>
 </html>
 )rawliteral";
+
 #else
 const char* timerModeHtml = "";
 #endif
