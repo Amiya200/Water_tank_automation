@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #if defined(ESP8266)
 #include <ESP8266WebServer.h>
 static ESP8266WebServer server(80);
@@ -40,6 +41,7 @@ struct TimerSlot {
   String offTime = "";
   int gap = 0;
 };
+
 TimerSlot g_timer[5];
 
 struct CountdownCache {
@@ -56,185 +58,163 @@ struct TwistCache {
   String days = "";
 } g_twist;
 
-void sendPacket(String pkt) {
+void sendPacket(String pkt)
+{
+  if (!pkt.startsWith("@")) pkt = "@" + pkt;
   if (!pkt.endsWith("#")) pkt += "#";
+
   esp_uart_send(pkt.c_str());
 }
 
-void requestStatus() {
+void requestStatus()
+{
   sendPacket("@STATUS#");
 }
 
-void setMode(String newMode) {
-  if (g_liveMode == newMode) {
+void setMode(String newMode)
+{
+  if (g_liveMode == newMode)
+  {
     sendPacket("@" + newMode + ":OFF#");
     g_liveMode = "OFFMODE";
-  } else {
+  }
+  else
+  {
     if (g_liveMode != "OFFMODE")
       sendPacket("@" + g_liveMode + ":OFF#");
+
     sendPacket("@" + newMode + ":ON#");
+
     g_liveMode = newMode;
   }
 }
 
-void parseStatus(String pkt) {
-  pkt.remove(0, 8); 
+void parseStatus(String pkt)
+{
+  pkt.remove(0, 8);
   int mPos = pkt.indexOf("MOTOR:");
   int lPos = pkt.indexOf(":LEVEL:");
   int modePos = pkt.indexOf(":MODE:");
-  if (mPos != -1 && lPos != -1 && modePos != -1) {
+  if (mPos != -1 && lPos != -1 && modePos != -1)
+  {
     g_motorStatus = pkt.substring(mPos + 6, lPos);
     int levelCode = pkt.substring(lPos + 7, modePos).toInt();
-    switch (levelCode) {
+    switch (levelCode)
+    {
       case 1: g_liveLevel = 25; break;
       case 2: g_liveLevel = 50; break;
       case 3: g_liveLevel = 75; break;
       case 4: g_liveLevel = 100; break;
       default: g_liveLevel = 0;
     }
+
     g_liveMode = pkt.substring(modePos + 6);
   }
 }
 
-void parseSettings(String data) {
+void parseSettings(String data)
+{
   int start = 0;
-  while (start < data.length()) {
+
+  while (start < data.length())
+  {
     int semi = data.indexOf(';', start);
+
     String token;
-    if (semi == -1) {
+
+    if (semi == -1)
+    {
       token = data.substring(start);
       start = data.length();
-    } else {
+    }
+    else
+    {
       token = data.substring(start, semi);
       start = semi + 1;
     }
+
     int eq = token.indexOf('=');
     if (eq == -1) continue;
+
     String key = token.substring(0, eq);
     String val = token.substring(eq + 1);
-    if (key == "dryRunGap") g_settings.dryRunGap = val.toInt();
-    else if (key == "testingGap") g_settings.testingGap = val.toInt();
-    else if (key == "maxRun") g_settings.maxRun = val.toInt();
-    else if (key == "lowVolt") g_settings.lowVolt = val.toInt();
-    else if (key == "highVolt") g_settings.highVolt = val.toInt();
-    else if (key == "overLoad") g_settings.overLoad = val.toInt();
-    else if (key == "underLoad") g_settings.underLoad = val.toInt();
-    else if (key == "powerRestore") g_settings.powerRestore = val.toInt();
+
+    int v = val.toInt();
+
+    /* compact protocol */
+
+    if (key == "D") g_settings.dryRunGap = v;
+    else if (key == "T") g_settings.testingGap = v;
+    else if (key == "M") g_settings.maxRun = v;
+    else if (key == "LV") g_settings.lowVolt = v;
+    else if (key == "HV") g_settings.highVolt = v;
+    else if (key == "OL") g_settings.overLoad = v;
+    else if (key == "UL") g_settings.underLoad = v;
+    else if (key == "PR") g_settings.powerRestore = v;
+
+    /* legacy protocol */
+
+    else if (key == "dryRunGap") g_settings.dryRunGap = v;
+    else if (key == "testingGap") g_settings.testingGap = v;
+    else if (key == "maxRun") g_settings.maxRun = v;
+    else if (key == "lowVolt") g_settings.lowVolt = v;
+    else if (key == "highVolt") g_settings.highVolt = v;
+    else if (key == "overLoad") g_settings.overLoad = v;
+    else if (key == "underLoad") g_settings.underLoad = v;
+    else if (key == "powerRestore") g_settings.powerRestore = v;
   }
 }
 
-void start_webserver() {
+
+/* ======================================================
+   WEB SERVER
+====================================================== */
+
+void start_webserver()
+{
   pinMode(MOTOR_PIN, OUTPUT);
   digitalWrite(MOTOR_PIN, LOW);
+
   server.on("/", HTTP_GET, []() {
     server.send(200, "text/html", htmlContent);
   });
+
+
   server.on("/status", HTTP_GET, []() {
+
     String json="{";
     json+="\"motor\":\""+g_motorStatus+"\",";
     json+="\"level\":"+String(g_liveLevel)+",";
     json+="\"mode\":\""+g_liveMode+"\"}";
-    server.send(200,"application/json",json);
-  });
-  server.on("/auto_toggle", HTTP_GET, [](){ setMode("AUTO"); server.send(200,"text/plain","OK"); });
-  server.on("/manual_toggle", HTTP_GET, [](){ setMode("MANUAL"); server.send(200,"text/plain","OK"); });
-  server.on("/semi_toggle", HTTP_GET, [](){ setMode("SEMIAUTO"); server.send(200,"text/plain","OK"); });
-  server.on("/timer", HTTP_GET, [](){ server.send(200,"text/html",timerModeHtml); });
-  server.on("/timer/get", HTTP_GET, [](){
-    String json="{";
-    for(int i=0;i<5;i++){
-      json+="\"slot"+String(i+1)+"\":{";
-      json+="\"enabled\":"+String(g_timer[i].enabled?1:0)+",";
-      json+="\"days\":\""+g_timer[i].days+"\",";
-      json+="\"on\":\""+g_timer[i].onTime+"\",";
-      json+="\"off\":\""+g_timer[i].offTime+"\",";
-      json+="\"gap\":"+String(g_timer[i].gap)+"}";
-      if(i<4) json+=",";
-    }
-    json+="}";
-    server.send(200,"application/json",json);
-  });
-  server.on("/timer/set", HTTP_GET, [](){
-    for(int i=1;i<=5;i++){
-      if(!server.hasArg("slot"+String(i))) continue;
-      g_timer[i-1].enabled=true;
-      g_timer[i-1].days=server.arg("days"+String(i));
-      g_timer[i-1].onTime=server.arg("on"+String(i));
-      g_timer[i-1].offTime=server.arg("off"+String(i));
-      g_timer[i-1].gap=server.arg("gap"+String(i)).toInt();
-      sendPacket("@TIMER:SET:"+String(i)+":"+
-                 g_timer[i-1].days+":"+
-                 g_timer[i-1].onTime.substring(0,2)+":"+
-                 g_timer[i-1].onTime.substring(3,5)+":"+
-                 g_timer[i-1].offTime.substring(0,2)+":"+
-                 g_timer[i-1].offTime.substring(3,5)+":1:"+
-                 String(g_timer[i-1].gap)+"#");
-    }
-    setMode("TIMER");
-    server.send(200,"text/plain","Timer Updated");
-  });
-  server.on("/countdown", HTTP_GET, [](){ server.send(200,"text/html",countdownModeHtml); });
-  server.on("/countdown/get", HTTP_GET, [](){
-    String json="{\"duration\":"+String(g_countdown.duration)+
-                ",\"active\":"+String(g_countdown.active?1:0)+"}";
+
     server.send(200,"application/json",json);
   });
 
-  server.on("/start_countdown", HTTP_GET, [](){
 
-    int dur=server.arg("duration").toInt();
-    g_countdown.duration=dur;
-    g_countdown.active=true;
-
-    sendPacket("@COUNTDOWN:ON:"+String(dur)+"#");
-    setMode("COUNTDOWN");
-
-    server.send(200,"text/plain","Countdown Started");
+  server.on("/auto_toggle", HTTP_GET, [](){
+    setMode("AUTO");
+    server.send(200,"text/plain","OK");
   });
 
-  server.on("/countdown_stop", HTTP_GET, [](){
-
-    g_countdown.active=false;
-    sendPacket("@COUNTDOWN:OFF#");
-    setMode("OFFMODE");
-
-    server.send(200,"text/plain","Countdown Stopped");
+  server.on("/manual_toggle", HTTP_GET, [](){
+    setMode("MANUAL");
+    server.send(200,"text/plain","OK");
   });
-  server.on("/twist", HTTP_GET, [](){ server.send(200,"text/html",twistModeHtml); });
-  server.on("/twist/get", HTTP_GET, [](){
-    String json="{";
-    json+="\"onDuration\":"+String(g_twist.onDuration)+",";
-    json+="\"offDuration\":"+String(g_twist.offDuration)+",";
-    json+="\"onTime\":\""+g_twist.onTime+"\",";
-    json+="\"offTime\":\""+g_twist.offTime+"\",";
-    json+="\"days\":\""+g_twist.days+"\"}";
-    server.send(200,"application/json",json);
-  });
-  server.on("/twist_submit", HTTP_GET, [](){
-    g_twist.onDuration=server.arg("onDuration").toInt();
-    g_twist.offDuration=server.arg("offDuration").toInt();
-    g_twist.onTime=server.arg("onTime");
-    g_twist.offTime=server.arg("offTime");
-    String days="";
-    const char* d[]={"mon","tue","wed","thu","fri","sat","sun"};
-    for(auto day:d){
-      if(server.hasArg(day)){
-        if(days.length()) days+=",";
-        days+=day;
-      }
-    }
-    g_twist.days=days;
-    sendPacket("@TWIST:SET:"+String(g_twist.onDuration)+":"+
-               String(g_twist.offDuration)+":"+
-               g_twist.onTime+":"+
-               g_twist.offTime+":"+
-               g_twist.days+"#");
 
-    setMode("TWIST");
-    server.send(200,"text/plain","Twist Updated");
+  server.on("/semi_toggle", HTTP_GET, [](){
+    setMode("SEMIAUTO");
+    server.send(200,"text/plain","OK");
   });
-  server.on("/settings", HTTP_GET, [](){ server.send(200,"text/html",settingsModeHtml); });
+
+
+  /* ================= SETTINGS ================= */
+
+  server.on("/settings", HTTP_GET, [](){
+    server.send(200,"text/html",settingsModeHtml);
+  });
+
   server.on("/settings/get", HTTP_GET, [](){
+
     String json="{";
     json+="\"dryRunGap\":"+String(g_settings.dryRunGap)+",";
     json+="\"testingGap\":"+String(g_settings.testingGap)+",";
@@ -244,31 +224,70 @@ void start_webserver() {
     json+="\"overLoad\":"+String(g_settings.overLoad)+",";
     json+="\"underLoad\":"+String(g_settings.underLoad)+",";
     json+="\"powerRestore\":"+String(g_settings.powerRestore)+"}";
+
     server.send(200,"application/json",json);
   });
+
+
   server.on("/settings/set", HTTP_GET, [](){
-    String data=server.arg("data");
+
+    String data = server.arg("data");
+
     parseSettings(data);
-    sendPacket("@SETTINGS:"+data+"#");
+
+    sendPacket("@SET:" + data + "#");
+
     server.send(200,"text/plain","Settings Updated");
   });
+
+
   server.begin();
+
   Serial.println("FULL SYSTEM READY - ALL 6 MODES ACTIVE");
 }
 
-void handleClient(){
+
+/* ======================================================
+   MAIN LOOP HANDLER
+====================================================== */
+
+void handleClient()
+{
   server.handleClient();
+
   char rxBuf[256];
-  if(esp_uart_receive(rxBuf,sizeof(rxBuf),10)){
-    String pkt=String(rxBuf);
+
+  if (esp_uart_receive(rxBuf,sizeof(rxBuf),10))
+  {
+    String pkt = String(rxBuf);
+
     pkt.trim();
-    if(pkt.startsWith("@STATUS:")) parseStatus(pkt);
-    else if(pkt.startsWith("@SETTINGS:")){
-      pkt.remove(0,10);
-      if(pkt.endsWith("#")) pkt.remove(pkt.length()-1);
+
+    if (pkt.startsWith("@STATUS:"))
+    {
+      parseStatus(pkt);
+    }
+
+    else if (pkt.startsWith("@SET:") || pkt.startsWith("@SETTINGS:"))
+    {
+      int pos = pkt.indexOf(':');
+
+      pkt.remove(0,pos+1);
+
+      if (pkt.endsWith("#"))
+        pkt.remove(pkt.length()-1);
+
       parseSettings(pkt);
     }
-    else if(pkt.startsWith("@COUNTDOWN:DONE"))
+
+    else if (pkt.startsWith("@SOK#"))
+    {
+      Serial.println("STM32 SETTINGS SAVED");
+    }
+
+    else if (pkt.startsWith("@COUNTDOWN:DONE"))
+    {
       g_countdown.active=false;
+    }
   }
 }

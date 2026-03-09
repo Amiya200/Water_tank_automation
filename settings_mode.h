@@ -342,7 +342,6 @@ input:checked + .slider:before {
 </div>
 
 <script>
-
 window.onload = function(){
 
 fetch('/settings/get')
@@ -387,6 +386,7 @@ document.getElementById("status").innerText="Failed to load settings";
 });
 };
 
+
 function toggleInput(inputId,toggleId){
 let input=document.getElementById(inputId);
 let toggle=document.getElementById(toggleId);
@@ -395,6 +395,7 @@ input.classList.add("disabled-input");
 else
 input.classList.remove("disabled-input");
 }
+
 
 function updateBuzzerOptions(){
 
@@ -422,6 +423,43 @@ row.classList.remove("blur-disabled");
 
 }
 
+
+/* ---------- KEY MAPPING FOR UART ---------- */
+
+const keyMap = {
+
+dryRunGap:"D",
+dryRunGap_en:"DE",
+
+testingGap:"T",
+testingGap_en:"TE",
+
+maxRun:"M",
+maxRun_en:"ME",
+
+lowVolt:"LV",
+lowVolt_en:"LVE",
+
+highVolt:"HV",
+highVolt_en:"HVE",
+
+overLoad:"OL",
+overLoad_en:"OLE",
+
+underLoad:"UL",
+underLoad_en:"ULE",
+
+powerRestore:"PR",
+powerRestore_en:"PRE",
+
+buzzerEnable:"BZ",
+buzzerTankFull:"BF",
+buzzerTankEmpty:"BE",
+buzzerMotorRunning:"BR"
+
+};
+
+
 function apply(){
 
 const btn=document.getElementById("applyBtn");
@@ -443,12 +481,19 @@ let ids=[
 let p=[];
 
 ids.forEach(id=>{
+
 let el=document.getElementById(id);
+
 let val=(el.type==="checkbox")?(el.checked?1:0):el.value;
-p.push(id+"="+val);
+
+let key = keyMap[id] || id;
+
+p.push(key+"="+val);
+
 });
 
 btn.disabled=true;
+
 status.innerText="Saving settings...";
 
 fetch("/settings/set?data="+encodeURIComponent(p.join(";")))
@@ -462,7 +507,9 @@ status.className="status error";
 status.innerText="Failed to save settings";
 })
 .finally(()=>btn.disabled=false);
+
 }
+
 
 function factoryReset(){
 if(confirm("Reset device to factory default?")){
@@ -470,7 +517,6 @@ fetch("/factory_reset")
 .then(()=>alert("Device reset completed"));
 }
 }
-
 </script>
 
 </body>
