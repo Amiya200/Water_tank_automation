@@ -67,11 +67,11 @@ void esp_uart_send(const char *message) {
 /* =====================================================
    SETTINGS SENDER (NEW COMPACT PROTOCOL)
 ===================================================== */
-
 void esp_uart_sendSettings(
   int dryRun,
-  int retry,
+  int testingGap,
   int maxRun,
+  int retry,
   int lowVolt,
   int highVolt,
   int overLoad,
@@ -80,6 +80,7 @@ void esp_uart_sendSettings(
   int dryRun_en,
   int testing_en,
   int maxRun_en,
+  int retry_en,
   int lowVolt_en,
   int highVolt_en,
   int overLoad_en,
@@ -88,13 +89,14 @@ void esp_uart_sendSettings(
   int buzzerFull,
   int buzzerEmpty)
 {
-  char pkt[200];
+  char pkt[220];
 
   snprintf(pkt,sizeof(pkt),
-  "@SET:D=%d;T=%d;M=%d;LV=%d;HV=%d;OL=%d;UL=%d;PR=%d;DE=%d;TE=%d;ME=%d;LVE=%d;HVE=%d;OLE=%d;ULE=%d;BZ=%d;BF=%d;BE=%d#",
+  "@SET:D=%d;T=%d;M=%d;RC=%d;LV=%d;HV=%d;OL=%d;UL=%d;PR=%d;DE=%d;TE=%d;ME=%d;RCE=%d;LVE=%d;HVE=%d;OLE=%d;ULE=%d;BZ=%d;BF=%d;BE=%d#",
   dryRun,
-  retry,
+  testingGap,
   maxRun,
+  retry,
   lowVolt,
   highVolt,
   overLoad,
@@ -103,6 +105,7 @@ void esp_uart_sendSettings(
   dryRun_en,
   testing_en,
   maxRun_en,
+  retry_en,
   lowVolt_en,
   highVolt_en,
   overLoad_en,
@@ -113,7 +116,6 @@ void esp_uart_sendSettings(
 
   esp_uart_send(pkt);
 }
-
 
 /* =====================================================
    UART RECEIVE

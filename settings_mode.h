@@ -163,8 +163,8 @@ input:checked + .slider:before {
 }
 
 .blur-disabled{
-  opacity:0.6;          /* lighter fade */
-  filter:blur(0.3px);   /* very subtle blur */
+  opacity:0.6;
+  filter:blur(0.3px);
   transition:0.2s ease;
 }
 </style>
@@ -208,6 +208,18 @@ input:checked + .slider:before {
 <input type="number" id="maxRun">
 <label class="switch">
 <input type="checkbox" id="maxRun_en" onchange="toggleInput('maxRun','maxRun_en')">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+<!-- RETRY COUNT ADDED -->
+<div class="setting-row">
+<div class="setting-left">Retry Count</div>
+<div class="setting-right">
+<input type="number" id="retryCount">
+<label class="switch">
+<input type="checkbox" id="retryCount_en" onchange="toggleInput('retryCount','retryCount_en')">
 <span class="slider"></span>
 </label>
 </div>
@@ -330,7 +342,6 @@ input:checked + .slider:before {
 
 </div>
 
-<!-- ACTIONS -->
 <div class="actions">
 <button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
 <button id="applyBtn" class="btn btn-primary" onclick="apply()">Apply Settings</button>
@@ -342,6 +353,7 @@ input:checked + .slider:before {
 </div>
 
 <script>
+
 window.onload = function(){
 
 fetch('/settings/get')
@@ -352,6 +364,7 @@ let ids=[
 "dryRunGap","dryRunGap_en",
 "testingGap","testingGap_en",
 "maxRun","maxRun_en",
+"retryCount","retryCount_en",
 "lowVolt","lowVolt_en",
 "highVolt","highVolt_en",
 "overLoad","overLoad_en",
@@ -386,7 +399,6 @@ document.getElementById("status").innerText="Failed to load settings";
 });
 };
 
-
 function toggleInput(inputId,toggleId){
 let input=document.getElementById(inputId);
 let toggle=document.getElementById(toggleId);
@@ -395,7 +407,6 @@ input.classList.add("disabled-input");
 else
 input.classList.remove("disabled-input");
 }
-
 
 function updateBuzzerOptions(){
 
@@ -420,11 +431,9 @@ el.disabled=false;
 row.classList.remove("blur-disabled");
 }
 });
-
 }
 
-
-/* ---------- KEY MAPPING FOR UART ---------- */
+/* UART KEY MAP */
 
 const keyMap = {
 
@@ -436,6 +445,9 @@ testingGap_en:"TE",
 
 maxRun:"M",
 maxRun_en:"ME",
+
+retryCount:"RC",
+retryCount_en:"RCE",
 
 lowVolt:"LV",
 lowVolt_en:"LVE",
@@ -459,7 +471,6 @@ buzzerMotorRunning:"BR"
 
 };
 
-
 function apply(){
 
 const btn=document.getElementById("applyBtn");
@@ -469,6 +480,7 @@ let ids=[
 "dryRunGap","dryRunGap_en",
 "testingGap","testingGap_en",
 "maxRun","maxRun_en",
+"retryCount","retryCount_en",
 "lowVolt","lowVolt_en",
 "highVolt","highVolt_en",
 "overLoad","overLoad_en",
@@ -510,13 +522,13 @@ status.innerText="Failed to save settings";
 
 }
 
-
 function factoryReset(){
 if(confirm("Reset device to factory default?")){
 fetch("/factory_reset")
 .then(()=>alert("Device reset completed"));
 }
 }
+
 </script>
 
 </body>

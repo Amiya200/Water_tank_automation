@@ -27,13 +27,13 @@ struct SettingsCache {
   int dryRunGap = 0;
   int testingGap = 0;
   int maxRun = 0;
+  int retryCount = 0;  // NEW
   int lowVolt = 0;
   int highVolt = 0;
   int overLoad = 0;
   int underLoad = 0;
   int powerRestore = 0;
 } g_settings;
-
 struct TimerSlot {
   bool enabled = false;
   String days = "";
@@ -58,28 +58,22 @@ struct TwistCache {
   String days = "";
 } g_twist;
 
-void sendPacket(String pkt)
-{
+void sendPacket(String pkt) {
   if (!pkt.startsWith("@")) pkt = "@" + pkt;
   if (!pkt.endsWith("#")) pkt += "#";
 
   esp_uart_send(pkt.c_str());
 }
 
-void requestStatus()
-{
+void requestStatus() {
   sendPacket("@STATUS#");
 }
 
-void setMode(String newMode)
-{
-  if (g_liveMode == newMode)
-  {
+void setMode(String newMode) {
+  if (g_liveMode == newMode) {
     sendPacket("@" + newMode + ":OFF#");
     g_liveMode = "OFFMODE";
-  }
-  else
-  {
+  } else {
     if (g_liveMode != "OFFMODE")
       sendPacket("@" + g_liveMode + ":OFF#");
 
@@ -89,18 +83,15 @@ void setMode(String newMode)
   }
 }
 
-void parseStatus(String pkt)
-{
+void parseStatus(String pkt) {
   pkt.remove(0, 8);
   int mPos = pkt.indexOf("MOTOR:");
   int lPos = pkt.indexOf(":LEVEL:");
   int modePos = pkt.indexOf(":MODE:");
-  if (mPos != -1 && lPos != -1 && modePos != -1)
-  {
+  if (mPos != -1 && lPos != -1 && modePos != -1) {
     g_motorStatus = pkt.substring(mPos + 6, lPos);
     int levelCode = pkt.substring(lPos + 7, modePos).toInt();
-    switch (levelCode)
-    {
+    switch (levelCode) {
       case 1: g_liveLevel = 25; break;
       case 2: g_liveLevel = 50; break;
       case 3: g_liveLevel = 75; break;
@@ -112,23 +103,18 @@ void parseStatus(String pkt)
   }
 }
 
-void parseSettings(String data)
-{
+void parseSettings(String data) {
   int start = 0;
 
-  while (start < data.length())
-  {
+  while (start < data.length()) {
     int semi = data.indexOf(';', start);
 
     String token;
 
-    if (semi == -1)
-    {
+    if (semi == -1) {
       token = data.substring(start);
       start = data.length();
-    }
-    else
-    {
+    } else {
       token = data.substring(start, semi);
       start = semi + 1;
     }
@@ -146,6 +132,7 @@ void parseSettings(String data)
     if (key == "D") g_settings.dryRunGap = v;
     else if (key == "T") g_settings.testingGap = v;
     else if (key == "M") g_settings.maxRun = v;
+    else if (key == "RC") g_settings.retryCount = v;  // NEW
     else if (key == "LV") g_settings.lowVolt = v;
     else if (key == "HV") g_settings.highVolt = v;
     else if (key == "OL") g_settings.overLoad = v;
@@ -156,6 +143,7 @@ void parseSettings(String data)
 
     else if (key == "dryRunGap") g_settings.dryRunGap = v;
     else if (key == "testingGap") g_settings.testingGap = v;
+    else if (key == "retryCount") g_settings.retryCount = v;  // NEW
     else if (key == "maxRun") g_settings.maxRun = v;
     else if (key == "lowVolt") g_settings.lowVolt = v;
     else if (key == "highVolt") g_settings.highVolt = v;
@@ -170,8 +158,7 @@ void parseSettings(String data)
    WEB SERVER
 ====================================================== */
 
-void start_webserver()
-{
+void start_webserver() {
   pinMode(MOTOR_PIN, OUTPUT);
   digitalWrite(MOTOR_PIN, LOW);
 
@@ -181,63 +168,61 @@ void start_webserver()
 
 
   server.on("/status", HTTP_GET, []() {
+    String json = "{";
+    json += "\"motor\":\"" + g_motorStatus + "\",";
+    json += "\"level\":" + String(g_liveLevel) + ",";
+    json += "\"mode\":\"" + g_liveMode + "\"}";
 
-    String json="{";
-    json+="\"motor\":\""+g_motorStatus+"\",";
-    json+="\"level\":"+String(g_liveLevel)+",";
-    json+="\"mode\":\""+g_liveMode+"\"}";
-
-    server.send(200,"application/json",json);
+    server.send(200, "application/json", json);
   });
 
 
-  server.on("/auto_toggle", HTTP_GET, [](){
+  server.on("/auto_toggle", HTTP_GET, []() {
     setMode("AUTO");
-    server.send(200,"text/plain","OK");
+    server.send(200, "text/plain", "OK");
   });
 
-  server.on("/manual_toggle", HTTP_GET, [](){
+  server.on("/manual_toggle", HTTP_GET, []() {
     setMode("MANUAL");
-    server.send(200,"text/plain","OK");
+    server.send(200, "text/plain", "OK");
   });
 
-  server.on("/semi_toggle", HTTP_GET, [](){
+  server.on("/semi_toggle", HTTP_GET, []() {
     setMode("SEMIAUTO");
-    server.send(200,"text/plain","OK");
+    server.send(200, "text/plain", "OK");
   });
 
 
   /* ================= SETTINGS ================= */
 
-  server.on("/settings", HTTP_GET, [](){
-    server.send(200,"text/html",settingsModeHtml);
+  server.on("/settings", HTTP_GET, []() {
+    server.send(200, "text/html", settingsModeHtml);
   });
 
-  server.on("/settings/get", HTTP_GET, [](){
+  server.on("/settings/get", HTTP_GET, []() {
+    String json = "{";
+    json += "\"dryRunGap\":" + String(g_settings.dryRunGap) + ",";
+    json += "\"testingGap\":" + String(g_settings.testingGap) + ",";
+    json += "\"maxRun\":" + String(g_settings.maxRun) + ",";
+    json += "\"retryCount\":" + String(g_settings.retryCount) + ",";  // NEW
+    json += "\"lowVolt\":" + String(g_settings.lowVolt) + ",";
+    json += "\"highVolt\":" + String(g_settings.highVolt) + ",";
+    json += "\"overLoad\":" + String(g_settings.overLoad) + ",";
+    json += "\"underLoad\":" + String(g_settings.underLoad) + ",";
+    json += "\"powerRestore\":" + String(g_settings.powerRestore) + "}";
 
-    String json="{";
-    json+="\"dryRunGap\":"+String(g_settings.dryRunGap)+",";
-    json+="\"testingGap\":"+String(g_settings.testingGap)+",";
-    json+="\"maxRun\":"+String(g_settings.maxRun)+",";
-    json+="\"lowVolt\":"+String(g_settings.lowVolt)+",";
-    json+="\"highVolt\":"+String(g_settings.highVolt)+",";
-    json+="\"overLoad\":"+String(g_settings.overLoad)+",";
-    json+="\"underLoad\":"+String(g_settings.underLoad)+",";
-    json+="\"powerRestore\":"+String(g_settings.powerRestore)+"}";
-
-    server.send(200,"application/json",json);
+    server.send(200, "application/json", json);
   });
 
 
-  server.on("/settings/set", HTTP_GET, [](){
-
+  server.on("/settings/set", HTTP_GET, []() {
     String data = server.arg("data");
 
     parseSettings(data);
 
     sendPacket("@SET:" + data + "#");
 
-    server.send(200,"text/plain","Settings Updated");
+    server.send(200, "text/plain", "Settings Updated");
   });
 
 
@@ -251,43 +236,37 @@ void start_webserver()
    MAIN LOOP HANDLER
 ====================================================== */
 
-void handleClient()
-{
+void handleClient() {
   server.handleClient();
 
   char rxBuf[256];
 
-  if (esp_uart_receive(rxBuf,sizeof(rxBuf),10))
-  {
+  if (esp_uart_receive(rxBuf, sizeof(rxBuf), 10)) {
     String pkt = String(rxBuf);
 
     pkt.trim();
 
-    if (pkt.startsWith("@STATUS:"))
-    {
+    if (pkt.startsWith("@STATUS:")) {
       parseStatus(pkt);
     }
 
-    else if (pkt.startsWith("@SET:") || pkt.startsWith("@SETTINGS:"))
-    {
+    else if (pkt.startsWith("@SET:") || pkt.startsWith("@SETTINGS:")) {
       int pos = pkt.indexOf(':');
 
-      pkt.remove(0,pos+1);
+      pkt.remove(0, pos + 1);
 
       if (pkt.endsWith("#"))
-        pkt.remove(pkt.length()-1);
+        pkt.remove(pkt.length() - 1);
 
       parseSettings(pkt);
     }
 
-    else if (pkt.startsWith("@SOK#"))
-    {
+    else if (pkt.startsWith("@SOK#")) {
       Serial.println("STM32 SETTINGS SAVED");
     }
 
-    else if (pkt.startsWith("@COUNTDOWN:DONE"))
-    {
-      g_countdown.active=false;
+    else if (pkt.startsWith("@COUNTDOWN:DONE")) {
+      g_countdown.active = false;
     }
   }
 }
