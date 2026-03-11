@@ -1,11 +1,20 @@
+/*
+ * esp_uart_comm.cpp — ESP ↔ STM32 UART Communication
+ *
+ * FIXES:
+ *  1. Status packet parsed positionally (@STATUS:ON:75:AUTO#)
+ *     instead of searching for labels ("MOTOR:" etc.) that don't exist
+ *  2. g_waterLevel now correctly stores the raw % from STM32
+ */
+
 #include "esp_uart_comm.h"
 #include "auto_mode.h"
 #include <Arduino.h>
 #include <string.h>
 
-extern String g_motorStatus;
-extern int    g_waterLevel;
-extern String g_mode;
+extern String g_motorStatus;   // defined in web_server.cpp
+extern int    g_waterLevel;    // defined in web_server.cpp (alias of g_liveLevel)
+extern String g_liveMode;      // defined in web_server.cpp  ← was wrongly "g_mode"
 
 static char s_rxBuffer[ESP_UART_RX_BUFFER_SIZE];
 static int  s_rxBufferIndex = 0;
@@ -30,7 +39,6 @@ void esp_uart_init() {
 
   memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
   s_rxBufferIndex = 0;
-
   s_lastStatusRequest = millis();
 
   DBG_PRINTLN("UART Init OK");
@@ -42,11 +50,9 @@ void esp_uart_init() {
 ===================================================== */
 
 void esp_uart_send(const char *message) {
-
   if (!message || !*message) return;
 
   String pkt = message;
-
   pkt.trim();
 
   if (!pkt.startsWith("@")) pkt = "@" + pkt;
@@ -65,8 +71,9 @@ void esp_uart_send(const char *message) {
 
 
 /* =====================================================
-   SETTINGS SENDER (NEW COMPACT PROTOCOL)
+   SETTINGS SENDER
 ===================================================== */
+
 void esp_uart_sendSettings(
   int dryRun,
   int testingGap,
@@ -90,50 +97,33 @@ void esp_uart_sendSettings(
   int buzzerEmpty)
 {
   char pkt[220];
-
-  snprintf(pkt,sizeof(pkt),
-  "@SET:D=%d;T=%d;M=%d;RC=%d;LV=%d;HV=%d;OL=%d;UL=%d;PR=%d;DE=%d;TE=%d;ME=%d;RCE=%d;LVE=%d;HVE=%d;OLE=%d;ULE=%d;BZ=%d;BF=%d;BE=%d#",
-  dryRun,
-  testingGap,
-  maxRun,
-  retry,
-  lowVolt,
-  highVolt,
-  overLoad,
-  underLoad,
-  powerRestore,
-  dryRun_en,
-  testing_en,
-  maxRun_en,
-  retry_en,
-  lowVolt_en,
-  highVolt_en,
-  overLoad_en,
-  underLoad_en,
-  buzzerEnable,
-  buzzerFull,
-  buzzerEmpty);
+  snprintf(pkt, sizeof(pkt),
+    "@SET:D=%d;T=%d;M=%d;RC=%d;LV=%d;HV=%d;OL=%d;UL=%d;PR=%d;"
+    "DE=%d;TE=%d;ME=%d;RCE=%d;LVE=%d;HVE=%d;OLE=%d;ULE=%d;"
+    "BZ=%d;BF=%d;BE=%d#",
+    dryRun, testingGap, maxRun, retry,
+    lowVolt, highVolt, overLoad, underLoad, powerRestore,
+    dryRun_en, testing_en, maxRun_en, retry_en,
+    lowVolt_en, highVolt_en, overLoad_en, underLoad_en,
+    buzzerEnable, buzzerFull, buzzerEmpty);
 
   esp_uart_send(pkt);
 }
+
 
 /* =====================================================
    UART RECEIVE
 ===================================================== */
 
 bool esp_uart_receive(char *buffer, size_t bufferSize, unsigned long timeoutMs) {
-
   unsigned long start = millis();
   bool packetReceived = false;
 
   auto drainSerialOnce = [&]() -> bool {
-
     while (Serial.available()) {
-
       char c = Serial.read();
 
       if (c == '\r' || c == '\n') continue;
-
       if ((uint8_t)c < 32 && c != '@' && c != '#') continue;
 
       if (c == '@') {
@@ -145,24 +135,17 @@ bool esp_uart_receive(char *buffer, size_t bufferSize, unsigned long timeoutMs) 
         s_rxBuffer[s_rxBufferIndex++] = c;
 
       if (c == '#') {
-
         s_rxBuffer[s_rxBufferIndex] = '\0';
-
         strncpy(buffer, s_rxBuffer, bufferSize - 1);
         buffer[bufferSize - 1] = '\0';
-
         packetReceived = true;
-
         s_rxBufferIndex = 0;
         memset(s_rxBuffer, 0, sizeof(s_rxBuffer));
-
         return true;
       }
     }
-
     return false;
   };
-
 
   if (timeoutMs == 0) {
     drainSerialOnce();
@@ -170,15 +153,11 @@ bool esp_uart_receive(char *buffer, size_t bufferSize, unsigned long timeoutMs) 
   }
 
   while (millis() - start < timeoutMs) {
-
-    if (drainSerialOnce())
-      return true;
-
+    if (drainSerialOnce()) return true;
     delay(1);
   }
 
   drainSerialOnce();
-
   return packetReceived;
 }
 
@@ -188,174 +167,94 @@ bool esp_uart_receive(char *buffer, size_t bufferSize, unsigned long timeoutMs) 
 ===================================================== */
 
 void esp_uart_requestStatus() {
-
   esp_uart_send("STATUS");
-
   s_lastStatusRequest = millis();
-
   DBG_PRINTLN("Requested @STATUS#");
 }
 
-
-/* =====================================================
-   AUTO STATUS REQUEST
-===================================================== */
-
 void esp_uart_autoStatusRequest() {
-
   unsigned long now = millis();
-
   unsigned long interval =
       (g_motorStatus == "ON") ? 10000UL : (10UL * 60UL * 1000UL);
 
   if (now - s_lastStatusRequest >= interval) {
-
     esp_uart_requestStatus();
-
     s_lastStatusRequest = now;
-
-    DBG_PRINT("Auto status request → Motor:");
-    DBG_PRINTLN(g_motorStatus);
   }
 }
 
+extern int g_liveLevel;
 
-/* =====================================================
-   SETTINGS LOGGER (FOR DEBUG)
-===================================================== */
+static void parseStatusFields(const String &body)
+{
+  // body = "ON:75:AUTO"
+  int colon1 = body.indexOf(':');
+  if (colon1 == -1) return;
 
-static void esp_uart_parseSettingsAndLog(const String &kvStr) {
+  int colon2 = body.indexOf(':', colon1 + 1);
+  if (colon2 == -1) return;
 
-  if (kvStr.length() == 0) return;
+  g_motorStatus = body.substring(0, colon1);
 
-  int start = 0;
+  int level = body.substring(colon1 + 1, colon2).toInt();
 
-  while (start < kvStr.length()) {
+  g_waterLevel = level;   // internal alias
+  g_liveLevel  = level;   // used by web server
 
-    int semi = kvStr.indexOf(';', start);
+  g_liveMode = body.substring(colon2 + 1);
 
-    String token;
+  autoMode_applyStatusFromSTM32(g_liveMode);
 
-    if (semi == -1) {
-      token = kvStr.substring(start);
-      start = kvStr.length();
-    }
-    else {
-      token = kvStr.substring(start, semi);
-      start = semi + 1;
-    }
-
-    token.trim();
-
-    if (token.length() == 0) continue;
-
-    int eq = token.indexOf('=');
-
-    if (eq == -1) continue;
-
-    String k = token.substring(0, eq);
-    String v = token.substring(eq + 1);
-
-    k.trim();
-    v.trim();
-
-    Serial.printf("SETTING → %s = %s\n", k.c_str(), v.c_str());
-  }
+  Serial.printf("📶 STATUS → Motor:%s | Level:%d%% | Mode:%s\n",
+                g_motorStatus.c_str(),
+                level,
+                g_liveMode.c_str());
 }
-
 
 /* =====================================================
    COMMAND PROCESSOR
 ===================================================== */
 
 void esp_uart_processCommand(const char *cmd) {
-
   if (!cmd) return;
 
-
-  /* ================= STATUS ================= */
-
-  if (strstr(cmd, "@STATUS:")) {
-
-    String pkt = String(cmd);
-
-    pkt.replace("@STATUS:", "");
-    pkt.replace("#", "");
-
-    int settingsIdx = pkt.indexOf(":SETTINGS:");
-
-    String settingsPart = "";
-
-    if (settingsIdx != -1) {
-      settingsPart = pkt.substring(settingsIdx + 10);
-      pkt = pkt.substring(0, settingsIdx);
-    }
-
-    int motorIdx = pkt.indexOf("MOTOR:");
-    int levelIdx = pkt.indexOf(":LEVEL:");
-    int modeIdx  = pkt.indexOf(":MODE:");
-
-    if (motorIdx == -1 || levelIdx == -1 || modeIdx == -1)
-      return;
-
-    g_motorStatus = pkt.substring(motorIdx + 6, levelIdx);
-    g_waterLevel  = pkt.substring(levelIdx + 7, modeIdx).toInt();
-    g_mode        = pkt.substring(modeIdx + 6);
-
-    autoMode_applyStatusFromSTM32(g_mode);
-
-    Serial.printf("📶 STATUS → Motor:%s | Level:%d | Mode:%s\n",
-                  g_motorStatus.c_str(),
-                  g_waterLevel,
-                  g_mode.c_str());
-
-    if (settingsPart.length())
-      esp_uart_parseSettingsAndLog(settingsPart);
-
+  /* ── STATUS ── */
+  if (strncmp(cmd, "@STATUS:", 8) == 0) {
+    // Strip leading "@STATUS:" and trailing "#"
+    String body = String(cmd + 8);
+    int hashPos = body.lastIndexOf('#');
+    if (hashPos != -1) body.remove(hashPos);
+    body.trim();
+    parseStatusFields(body);
     return;
   }
 
-
-  /* ================= SETTINGS ACK (NEW) ================= */
-
-  else if (strstr(cmd, "@SOK#")) {
-
-    Serial.println("STM32 SETTINGS SAVED");
-
+  /* ── SETTINGS ACK ── */
+  if (strstr(cmd, "@SOK#")) {
+    Serial.println("✅ STM32 SETTINGS SAVED");
     return;
   }
 
-
-  /* ================= LEGACY ACK ================= */
-
-  else if (strstr(cmd, "@ACK:")) {
-
-    Serial.print("ACK RX → ");
+  /* ── LEGACY ACK ── */
+  if (strncmp(cmd, "@ACK:", 5) == 0) {
+    Serial.print("ACK → ");
     Serial.println(cmd);
-
-    if (strstr(cmd, "@ACK:SETTINGS"))
-      Serial.println("STM32 acknowledged SETTINGS");
-
     return;
   }
 
-
-  /* ================= ERROR ================= */
-
-  else if (strstr(cmd, "@ERR:")) {
-
-    Serial.print("ERR RX → ");
+  /* ── ERROR ── */
+  if (strncmp(cmd, "@ERR:", 5) == 0) {
+    Serial.print("ERR → ");
     Serial.println(cmd);
-
     return;
   }
 
-
-  /* ================= UNKNOWN ================= */
-
-  else {
-
-    Serial.print("Unknown packet: ");
-    Serial.println(cmd);
+  /* ── PONG ── */
+  if (strstr(cmd, "@PONG#")) {
+    DBG_PRINTLN("PONG received");
+    return;
   }
+
+  Serial.print("❓ Unknown packet: ");
+  Serial.println(cmd);
 }
