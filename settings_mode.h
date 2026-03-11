@@ -213,7 +213,6 @@ input:checked + .slider:before {
 </div>
 </div>
 
-<!-- RETRY COUNT ADDED -->
 <div class="setting-row">
 <div class="setting-left">Retry Count</div>
 <div class="setting-right">
@@ -354,9 +353,10 @@ input:checked + .slider:before {
 
 <script>
 
+/* FIX: was '/settings/get' — correct endpoint is '/get_settings' */
 window.onload = function(){
 
-fetch('/settings/get')
+fetch('/get_settings')
 .then(res=>res.json())
 .then(data=>{
 

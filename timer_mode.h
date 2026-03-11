@@ -176,7 +176,7 @@ function makeSlot(n){
   </div>`;
 }
 
-for(let i=1;i<=5;i++) 
+for(let i=1;i<=5;i++)
   form.insertAdjacentHTML("beforeend",makeSlot(i));
 
 document.addEventListener("change", function(e){
@@ -193,8 +193,9 @@ document.addEventListener("click", function(e){
   }
 });
 
+/* FIX: was '/timer/get' — correct endpoint is '/get_timer' */
 window.onload = function(){
-  fetch('/timer/get')
+  fetch('/get_timer')
   .then(res => res.json())
   .then(data => {
     for(let n=1;n<=5;n++){

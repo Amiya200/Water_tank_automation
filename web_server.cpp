@@ -1,16 +1,18 @@
 /*
  * web_server.cpp — ESP Web Server
  *
- * FIXES:
- *  1. parseStatus() rewritten — positional split of @STATUS:ON:75:AUTO#
- *     (was incorrectly searching for "MOTOR:", ":LEVEL:", ":MODE:" labels)
- *  2. Added JSON endpoints for every settings page so the browser can
- *     re-populate form fields when the page is reopened:
- *       GET /get_status       → motor, level, mode
- *       GET /get_settings     → all protection/buzzer settings
- *       GET /get_timer        → all 5 timer slots
- *       GET /get_countdown    → current countdown state
- *       GET /get_twist        → twist on/off durations + times
+ * FIXES APPLIED:
+ *  1. parseStatus() — positional split of @STATUS:ON:75:AUTO#
+ *  2. buildSettingsJson() — keys now match HTML element IDs exactly:
+ *       buzzerPump   → buzzerEnable
+ *       buzzerFull   → buzzerTankFull
+ *       buzzerEmpty  → buzzerTankEmpty
+ *       dryRunEn     → dryRunGap_en
+ *       testingEn    → testingGap_en   (etc.)
+ *  3. buildTimerJson() — now returns keyed object {"slot1":{...},...}
+ *     with "on"/"off" keys instead of array with "onTime"/"offTime"
+ *  4. GET endpoints added for all pages:
+ *       /get_status  /get_settings  /get_timer  /get_countdown  /get_twist
  */
 
 #include <Arduino.h>
@@ -31,7 +33,7 @@ static WebServer server(80);
 #include "auto_mode.h"
 #include "esp_uart_comm.h"
 
-/* Forward declarations — in case esp_uart_comm.h does not expose these */
+/* Forward declarations */
 void esp_uart_send(const char *message);
 void esp_uart_autoStatusRequest(void);
 void esp_uart_sendSettings(
@@ -57,21 +59,21 @@ extern const char *htmlContent;
 
 String g_liveMode    = "STANDBY";
 String g_motorStatus = "OFF";
-int    g_liveLevel   = 0;          // percent: 0,25,50,75,100
-int    g_waterLevel  = 0;          // alias used by esp_uart_comm
+int    g_liveLevel   = 0;
+int    g_waterLevel  = 0;
 
 
 /* ================= SETTINGS CACHE ================= */
 
 struct SettingsCache {
-  int dryRunGap    = 5;     // minutes
-  int testingGap   = 30;    // minutes
-  int maxRun       = 120;   // minutes
+  int dryRunGap    = 5;
+  int testingGap   = 30;
+  int maxRun       = 120;
   int retryCount   = 3;
-  int lowVolt      = 180;   // V
-  int highVolt     = 260;   // V
-  int overLoad     = 0;     // A  (0 = disabled)
-  int underLoad    = 0;     // A  (0 = disabled)
+  int lowVolt      = 180;
+  int highVolt     = 260;
+  int overLoad     = 0;
+  int underLoad    = 0;
   int powerRestore = 0;
   int dryRunEn     = 1;
   int testingEn    = 1;
@@ -103,7 +105,7 @@ TimerSlot g_timer[5];
 
 struct CountdownCache {
   bool active      = false;
-  int  duration    = 600;    // seconds, last used value
+  int  duration    = 600;
   int  remaining   = 0;
 } g_countdown;
 
@@ -112,8 +114,8 @@ struct CountdownCache {
 
 struct TwistCache {
   bool   active      = false;
-  int    onDuration  = 5;    // minutes
-  int    offDuration = 5;    // minutes
+  int    onDuration  = 5;
+  int    offDuration = 5;
   String onTime      = "06:00";
   String offTime     = "18:00";
   String days        = "Mon,Tue,Wed,Thu,Fri,Sat,Sun";
@@ -148,9 +150,8 @@ void setMode(String newMode) {
 
 
 /* ======================================================
-   STATUS PARSER  ← FIX
+   STATUS PARSER
    STM32 packet format: @STATUS:ON:75:AUTO#
-   After stripping: "ON:75:AUTO"
 ====================================================== */
 void parseStatus(String pkt)
 {
@@ -171,7 +172,6 @@ void parseStatus(String pkt)
   g_motorStatus = pkt.substring(0, colon1);
 
   int level = pkt.substring(colon1 + 1, colon2).toInt();
-
   g_liveLevel  = level;
   g_waterLevel = level;
 
@@ -229,7 +229,7 @@ static String jsonStr(const String &s) {
   return "\"" + s + "\"";
 }
 
-/* Build /get_status JSON */
+/* /get_status */
 static String buildStatusJson() {
   String j = "{";
   j += "\"motor\":"  + jsonStr(g_motorStatus) + ",";
@@ -238,58 +238,84 @@ static String buildStatusJson() {
   return j;
 }
 
-/* Build /get_settings JSON */
+/* ======================================================
+   FIX: buildSettingsJson()
+   Keys MUST match the HTML element id="" attributes exactly.
+
+   Old broken keys  →  Correct keys (matching HTML ids)
+   ─────────────────────────────────────────────────────
+   "dryRunEn"       →  "dryRunGap_en"
+   "testingEn"      →  "testingGap_en"
+   "maxRunEn"       →  "maxRun_en"
+   "retryEn"        →  "retryCount_en"
+   "lowVoltEn"      →  "lowVolt_en"
+   "highVoltEn"     →  "highVolt_en"
+   "overLoadEn"     →  "overLoad_en"
+   "underLoadEn"    →  "underLoad_en"
+   "buzzerPump"     →  "buzzerEnable"
+   "buzzerFull"     →  "buzzerTankFull"
+   "buzzerEmpty"    →  "buzzerTankEmpty"
+====================================================== */
 static String buildSettingsJson() {
   String j = "{";
-  j += "\"dryRunGap\":"    + String(g_settings.dryRunGap)    + ",";
-  j += "\"testingGap\":"   + String(g_settings.testingGap)   + ",";
-  j += "\"maxRun\":"       + String(g_settings.maxRun)       + ",";
-  j += "\"retryCount\":"   + String(g_settings.retryCount)   + ",";
-  j += "\"lowVolt\":"      + String(g_settings.lowVolt)      + ",";
-  j += "\"highVolt\":"     + String(g_settings.highVolt)     + ",";
-  j += "\"overLoad\":"     + String(g_settings.overLoad)     + ",";
-  j += "\"underLoad\":"    + String(g_settings.underLoad)    + ",";
-  j += "\"powerRestore\":" + String(g_settings.powerRestore) + ",";
-  j += "\"dryRunEn\":"     + String(g_settings.dryRunEn)     + ",";
-  j += "\"testingEn\":"    + String(g_settings.testingEn)    + ",";
-  j += "\"maxRunEn\":"     + String(g_settings.maxRunEn)     + ",";
-  j += "\"retryEn\":"      + String(g_settings.retryEn)      + ",";
-  j += "\"lowVoltEn\":"    + String(g_settings.lowVoltEn)    + ",";
-  j += "\"highVoltEn\":"   + String(g_settings.highVoltEn)   + ",";
-  j += "\"overLoadEn\":"   + String(g_settings.overLoadEn)   + ",";
-  j += "\"underLoadEn\":"  + String(g_settings.underLoadEn)  + ",";
-  j += "\"buzzerPump\":"   + String(g_settings.buzzerPump)   + ",";
-  j += "\"buzzerFull\":"   + String(g_settings.buzzerFull)   + ",";
-  j += "\"buzzerEmpty\":"  + String(g_settings.buzzerEmpty)  + "}";
+  /* numeric inputs */
+  j += "\"dryRunGap\":"       + String(g_settings.dryRunGap)    + ",";
+  j += "\"testingGap\":"      + String(g_settings.testingGap)   + ",";
+  j += "\"maxRun\":"          + String(g_settings.maxRun)       + ",";
+  j += "\"retryCount\":"      + String(g_settings.retryCount)   + ",";
+  j += "\"lowVolt\":"         + String(g_settings.lowVolt)      + ",";
+  j += "\"highVolt\":"        + String(g_settings.highVolt)     + ",";
+  j += "\"overLoad\":"        + String(g_settings.overLoad)     + ",";
+  j += "\"underLoad\":"       + String(g_settings.underLoad)    + ",";
+  j += "\"powerRestore\":"    + String(g_settings.powerRestore) + ",";
+  /* enable toggle checkboxes — keys match HTML id="dryRunGap_en" etc. */
+  j += "\"dryRunGap_en\":"    + String(g_settings.dryRunEn)     + ",";
+  j += "\"testingGap_en\":"   + String(g_settings.testingEn)    + ",";
+  j += "\"maxRun_en\":"       + String(g_settings.maxRunEn)     + ",";
+  j += "\"retryCount_en\":"   + String(g_settings.retryEn)      + ",";
+  j += "\"lowVolt_en\":"      + String(g_settings.lowVoltEn)    + ",";
+  j += "\"highVolt_en\":"     + String(g_settings.highVoltEn)   + ",";
+  j += "\"overLoad_en\":"     + String(g_settings.overLoadEn)   + ",";
+  j += "\"underLoad_en\":"    + String(g_settings.underLoadEn)  + ",";
+  j += "\"powerRestore_en\":1,";
+  /* buzzer checkboxes — keys match HTML id="buzzerEnable" etc. */
+  j += "\"buzzerEnable\":"       + String(g_settings.buzzerPump)  + ",";
+  j += "\"buzzerTankFull\":"     + String(g_settings.buzzerFull)  + ",";
+  j += "\"buzzerTankEmpty\":"    + String(g_settings.buzzerEmpty) + ",";
+  j += "\"buzzerMotorRunning\":" + String(g_settings.buzzerPump)  + "}";
   return j;
 }
 
-/* Build /get_timer JSON */
+/* ======================================================
+   FIX: buildTimerJson()
+   Old code returned: {"slots":[{"onTime":"06:00","offTime":"08:00",...},...]}
+   JS reads:          data["slot1"].on  /  data["slot1"].off
+   Fix: return keyed object with "on"/"off" fields, no array wrapper.
+====================================================== */
 static String buildTimerJson() {
-  String j = "{\"slots\":[";
+  String j = "{";
   for (int i = 0; i < 5; i++) {
     if (i) j += ",";
-    j += "{";
+    j += "\"slot" + String(i + 1) + "\":{";
     j += "\"enabled\":"  + String(g_timer[i].enabled ? 1 : 0) + ",";
     j += "\"days\":"     + jsonStr(g_timer[i].days)            + ",";
-    j += "\"onTime\":"   + jsonStr(g_timer[i].onTime)          + ",";
-    j += "\"offTime\":"  + jsonStr(g_timer[i].offTime)         + ",";
-    j += "\"gap\":"      + String(g_timer[i].gap)              + "}";
+    j += "\"on\":"       + jsonStr(g_timer[i].onTime)          + ",";
+    j += "\"off\":"      + jsonStr(g_timer[i].offTime)         + "}";
   }
-  j += "]}";
+  j += "}";
   return j;
 }
 
-/* Build /get_countdown JSON */
+/* /get_countdown */
 static String buildCountdownJson() {
   String j = "{";
-  j += "\"active\":"   + String(g_countdown.active ? 1 : 0) + ",";
-  j += "\"duration\":" + String(g_countdown.duration)       + ",";
-  j += "\"remaining\":" + String(g_countdown.remaining)     + "}";
+  j += "\"active\":"    + String(g_countdown.active ? 1 : 0) + ",";
+  j += "\"duration\":"  + String(g_countdown.duration)       + ",";
+  j += "\"remaining\":" + String(g_countdown.remaining)      + "}";
   return j;
 }
 
-/* Build /get_twist JSON */
+/* /get_twist */
 static String buildTwistJson() {
   String j = "{";
   j += "\"active\":"      + String(g_twist.active ? 1 : 0) + ",";
@@ -320,19 +346,13 @@ void start_webserver() {
     server.send(200, "text/html", htmlContent);
   });
 
-
   /* ── STATUS (live poll) ── */
   server.on("/status", HTTP_GET, []() {
     setCORSHeaders();
     server.send(200, "application/json", buildStatusJson());
   });
 
-
-  /* ─────────────────────────────────────────────────
-     GET endpoints — return cached values so every page
-     can pre-populate its form fields on load
-  ───────────────────────────────────────────────── */
-
+  /* ── GET endpoints for page pre-population ── */
   server.on("/get_status", HTTP_GET, []() {
     setCORSHeaders();
     server.send(200, "application/json", buildStatusJson());
@@ -358,7 +378,6 @@ void start_webserver() {
     server.send(200, "application/json", buildTwistJson());
   });
 
-
   /* ── MODE TOGGLES ── */
   server.on("/auto_toggle", HTTP_GET, []() {
     setMode("AUTO");
@@ -374,7 +393,6 @@ void start_webserver() {
     setMode("SEMIAUTO");
     server.send(200, "text/plain", "OK");
   });
-
 
   /* ── TIMER PAGE ── */
   server.on("/timer", HTTP_GET, []() {
@@ -399,7 +417,6 @@ void start_webserver() {
       int offH = g_timer[idx].offTime.substring(0,2).toInt();
       int offM = g_timer[idx].offTime.substring(3,5).toInt();
 
-      // Save slot to STM32
       sendPacket("@TIMER:SET:" + String(i) + ":"
                  + g_timer[idx].days + ":"
                  + String(onH) + ":" + String(onM) + ":"
@@ -415,7 +432,6 @@ void start_webserver() {
     server.send(200, "text/plain", "Timer Updated");
   });
 
-
   /* ── COUNTDOWN PAGE ── */
   server.on("/countdown", HTTP_GET, []() {
     server.send(200, "text/html", countdownModeHtml);
@@ -423,7 +439,7 @@ void start_webserver() {
 
   server.on("/start_countdown", HTTP_GET, []() {
     int dur = server.arg("duration").toInt();
-    if (dur < 60)   dur = 60;
+    if (dur < 60)    dur = 60;
     if (dur > 10800) dur = 10800;
 
     g_countdown.duration  = dur;
@@ -446,7 +462,6 @@ void start_webserver() {
     server.send(200, "text/plain", "Countdown Stopped");
   });
 
-
   /* ── TWIST PAGE ── */
   server.on("/twist", HTTP_GET, []() {
     server.send(200, "text/html", twistModeHtml);
@@ -460,7 +475,6 @@ void start_webserver() {
     if (server.hasArg("days")) g_twist.days = server.arg("days");
     g_twist.active = true;
 
-    // Parse HH:MM from onTime/offTime for STM32
     int onH  = g_twist.onTime.substring(0,2).toInt();
     int onM  = g_twist.onTime.substring(3,5).toInt();
     int offH = g_twist.offTime.substring(0,2).toInt();
@@ -483,7 +497,6 @@ void start_webserver() {
     server.send(200, "text/plain", "Twist Stopped");
   });
 
-
   /* ── SETTINGS PAGE ── */
   server.on("/settings", HTTP_GET, []() {
     server.send(200, "text/html", settingsModeHtml);
@@ -491,9 +504,8 @@ void start_webserver() {
 
   server.on("/settings/set", HTTP_GET, []() {
     String data = server.arg("data");
-    parseSettings(data);   // update local cache first
+    parseSettings(data);
 
-    // Build and send the SET packet to STM32 using cached values
     esp_uart_sendSettings(
       g_settings.dryRunGap,
       g_settings.testingGap,
@@ -519,7 +531,6 @@ void start_webserver() {
 
     server.send(200, "text/plain", "Settings Updated");
   });
-
 
   server.begin();
   Serial.println("✅ Web server started — all endpoints active");
@@ -551,7 +562,6 @@ void handleClient() {
       g_countdown.remaining = 0;
     }
     else {
-      // Forward to command processor for logging/debug
       esp_uart_processCommand(rxBuf);
     }
   }

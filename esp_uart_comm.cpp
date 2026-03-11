@@ -14,7 +14,7 @@
 
 extern String g_motorStatus;   // defined in web_server.cpp
 extern int    g_waterLevel;    // defined in web_server.cpp (alias of g_liveLevel)
-extern String g_liveMode;      // defined in web_server.cpp  ← was wrongly "g_mode"
+extern String g_liveMode;      // defined in web_server.cpp
 
 static char s_rxBuffer[ESP_UART_RX_BUFFER_SIZE];
 static int  s_rxBufferIndex = 0;
