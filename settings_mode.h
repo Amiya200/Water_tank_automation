@@ -146,6 +146,12 @@ input:checked + .slider:before {
   color:var(--danger);
 }
 
+.btn-secondary{
+  background:#fff;
+  border:2px solid var(--primary);
+  color:var(--primary);
+}
+
 .status{
   margin-top:20px;
   padding:14px;
@@ -295,45 +301,15 @@ input:checked + .slider:before {
 </div>
 </div>
 
-<!-- BUZZER SETTINGS -->
+<!-- BUZZER SETTINGS — single master on/off only -->
 <div class="section">
 <div class="section-title">Buzzer Control</div>
 
 <div class="setting-row">
-<div class="setting-left">Main Buzzer</div>
+<div class="setting-left">Buzzer</div>
 <div class="setting-right">
 <label class="switch">
-<input type="checkbox" id="buzzerEnable" onchange="updateBuzzerOptions()">
-<span class="slider"></span>
-</label>
-</div>
-</div>
-
-<div class="setting-row" id="rowTankFull">
-<div class="setting-left">Water Tank Full Alert</div>
-<div class="setting-right">
-<label class="switch">
-<input type="checkbox" id="buzzerTankFull">
-<span class="slider"></span>
-</label>
-</div>
-</div>
-
-<div class="setting-row" id="rowTankEmpty">
-<div class="setting-left">Water Tank Empty Alert</div>
-<div class="setting-right">
-<label class="switch">
-<input type="checkbox" id="buzzerTankEmpty">
-<span class="slider"></span>
-</label>
-</div>
-</div>
-
-<div class="setting-row" id="rowMotorRunning">
-<div class="setting-left">Motor Running Alert</div>
-<div class="setting-right">
-<label class="switch">
-<input type="checkbox" id="buzzerMotorRunning">
+<input type="checkbox" id="buzzerEnable">
 <span class="slider"></span>
 </label>
 </div>
@@ -342,9 +318,13 @@ input:checked + .slider:before {
 </div>
 
 <div class="actions">
-<button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
+<button class="btn btn-danger"    onclick="factoryReset()">Factory Reset</button>
 <button id="applyBtn" class="btn btn-primary" onclick="apply()">Apply Settings</button>
 </div>
+
+<button type="button" class="btn btn-secondary"
+        style="width:100%;margin-top:14px;"
+        onclick="location.href='/'">Back</button>
 
 <div id="status" class="status">Loading...</div>
 
@@ -353,180 +333,175 @@ input:checked + .slider:before {
 
 <script>
 
-/* FIX: was '/settings/get' — correct endpoint is '/get_settings' */
 window.onload = function(){
 
-fetch('/get_settings')
-.then(res=>res.json())
-.then(data=>{
+  fetch('/get_settings')
+  .then(res => res.json())
+  .then(data => {
 
-let ids=[
-"dryRunGap","dryRunGap_en",
-"testingGap","testingGap_en",
-"maxRun","maxRun_en",
-"retryCount","retryCount_en",
-"lowVolt","lowVolt_en",
-"highVolt","highVolt_en",
-"overLoad","overLoad_en",
-"underLoad","underLoad_en",
-"powerRestore","powerRestore_en",
-"buzzerEnable","buzzerTankFull",
-"buzzerTankEmpty","buzzerMotorRunning"
-];
+    /* numeric / select fields with paired _en toggles */
+    let ids = [
+      "dryRunGap",    "dryRunGap_en",
+      "testingGap",   "testingGap_en",
+      "maxRun",       "maxRun_en",
+      "retryCount",   "retryCount_en",
+      "lowVolt",      "lowVolt_en",
+      "highVolt",     "highVolt_en",
+      "overLoad",     "overLoad_en",
+      "underLoad",    "underLoad_en",
+      "powerRestore", "powerRestore_en",
+      "buzzerEnable"
+    ];
 
-ids.forEach(id=>{
-if(data[id]!==undefined){
-let el=document.getElementById(id);
-if(el.type==="checkbox")
-el.checked=data[id]==1;
-else
-el.value=data[id];
-}
-});
+    ids.forEach(id => {
+      if (data[id] !== undefined) {
+        let el = document.getElementById(id);
+        if (el.type === "checkbox")
+          el.checked = data[id] == 1;
+        else
+          el.value = data[id];
+      }
+    });
 
-ids.forEach(id=>{
-if(id.endsWith("_en"))
-toggleInput(id.replace("_en",""),id);
-});
+    /* apply disabled state for all _en toggles */
+    ids.forEach(id => {
+      if (id.endsWith("_en"))
+        toggleInput(id.replace("_en", ""), id);
+    });
 
-updateBuzzerOptions();
-
-document.getElementById("status").innerText="Ready";
-
-})
-.catch(()=>{
-document.getElementById("status").innerText="Failed to load settings";
-});
+    document.getElementById("status").innerText = "Ready";
+  })
+  .catch(() => {
+    document.getElementById("status").innerText = "Failed to load settings";
+  });
 };
 
-function toggleInput(inputId,toggleId){
-let input=document.getElementById(inputId);
-let toggle=document.getElementById(toggleId);
-if(!toggle.checked)
-input.classList.add("disabled-input");
-else
-input.classList.remove("disabled-input");
+function toggleInput(inputId, toggleId){
+  let input  = document.getElementById(inputId);
+  let toggle = document.getElementById(toggleId);
+  if (!toggle.checked)
+    input.classList.add("disabled-input");
+  else
+    input.classList.remove("disabled-input");
 }
 
-function updateBuzzerOptions(){
-
-let main=document.getElementById("buzzerEnable").checked;
-
-let items=[
-{checkbox:"buzzerTankFull",row:"rowTankFull"},
-{checkbox:"buzzerTankEmpty",row:"rowTankEmpty"},
-{checkbox:"buzzerMotorRunning",row:"rowMotorRunning"}
-];
-
-items.forEach(item=>{
-let el=document.getElementById(item.checkbox);
-let row=document.getElementById(item.row);
-
-if(!main){
-el.checked=false;
-el.disabled=true;
-row.classList.add("blur-disabled");
-}else{
-el.disabled=false;
-row.classList.remove("blur-disabled");
-}
-});
-}
-
-/* UART KEY MAP */
-
+/* ================================================================
+   KEY MAP — only what is sent to STM32.
+   The three sub-buzzer keys (BF, BE, BR) are derived from the
+   single master buzzerEnable toggle so the STM32 packet is
+   unchanged and all existing firmware logic continues to work.
+================================================================ */
 const keyMap = {
-
-dryRunGap:"D",
-dryRunGap_en:"DE",
-
-testingGap:"T",
-testingGap_en:"TE",
-
-maxRun:"M",
-maxRun_en:"ME",
-
-retryCount:"RC",
-retryCount_en:"RCE",
-
-lowVolt:"LV",
-lowVolt_en:"LVE",
-
-highVolt:"HV",
-highVolt_en:"HVE",
-
-overLoad:"OL",
-overLoad_en:"OLE",
-
-underLoad:"UL",
-underLoad_en:"ULE",
-
-powerRestore:"PR",
-powerRestore_en:"PRE",
-
-buzzerEnable:"BZ",
-buzzerTankFull:"BF",
-buzzerTankEmpty:"BE",
-buzzerMotorRunning:"BR"
-
+  dryRunGap       : "D",
+  dryRunGap_en    : "DE",
+  testingGap      : "T",
+  testingGap_en   : "TE",
+  maxRun          : "M",
+  maxRun_en       : "ME",
+  retryCount      : "RC",
+  retryCount_en   : "RCE",
+  lowVolt         : "LV",
+  lowVolt_en      : "LVE",
+  highVolt        : "HV",
+  highVolt_en     : "HVE",
+  overLoad        : "OL",
+  overLoad_en     : "OLE",
+  underLoad       : "UL",
+  underLoad_en    : "ULE",
+  powerRestore    : "PR",
+  powerRestore_en : "PRE"
 };
 
+const enableMap = {
+  dryRunGap    : "dryRunGap_en",
+  testingGap   : "testingGap_en",
+  maxRun       : "maxRun_en",
+  retryCount   : "retryCount_en",
+  lowVolt      : "lowVolt_en",
+  highVolt     : "highVolt_en",
+  overLoad     : "overLoad_en",
+  underLoad    : "underLoad_en",
+  powerRestore : "powerRestore_en"
+};
+
+/* ================================================================
+   APPLY
+   The single buzzerEnable toggle drives BZ, BF, BE and BR so the
+   STM32 packet stays identical to before — all three sub-buzzers
+   are set to the same value as the master toggle.
+   No other change to packet structure.
+================================================================ */
 function apply(){
 
-const btn=document.getElementById("applyBtn");
-const status=document.getElementById("status");
+  const btn    = document.getElementById("applyBtn");
+  const status = document.getElementById("status");
 
-let ids=[
-"dryRunGap","dryRunGap_en",
-"testingGap","testingGap_en",
-"maxRun","maxRun_en",
-"retryCount","retryCount_en",
-"lowVolt","lowVolt_en",
-"highVolt","highVolt_en",
-"overLoad","overLoad_en",
-"underLoad","underLoad_en",
-"powerRestore","powerRestore_en",
-"buzzerEnable","buzzerTankFull",
-"buzzerTankEmpty","buzzerMotorRunning"
-];
+  const ids = [
+    "dryRunGap",    "dryRunGap_en",
+    "testingGap",   "testingGap_en",
+    "maxRun",       "maxRun_en",
+    "retryCount",   "retryCount_en",
+    "lowVolt",      "lowVolt_en",
+    "highVolt",     "highVolt_en",
+    "overLoad",     "overLoad_en",
+    "underLoad",    "underLoad_en",
+    "powerRestore", "powerRestore_en"
+  ];
 
-let p=[];
+  let p = [];
 
-ids.forEach(id=>{
+  ids.forEach(id => {
+    const el  = document.getElementById(id);
+    const key = keyMap[id] || id;
 
-let el=document.getElementById(id);
+    /* _en toggle fields */
+    if (id.endsWith("_en")) {
+      p.push(key + "=" + (el.checked ? 1 : 0));
+      return;
+    }
 
-let val=(el.type==="checkbox")?(el.checked?1:0):el.value;
+    /* Numeric / select with paired _en: send 0 if toggle is OFF */
+    if (enableMap[id]) {
+      const toggleEl = document.getElementById(enableMap[id]);
+      if (!toggleEl.checked) {
+        p.push(key + "=0");
+        return;
+      }
+    }
 
-let key = keyMap[id] || id;
+    /* Normal enabled field */
+    p.push(key + "=" + el.value);
+  });
 
-p.push(key+"="+val);
+  /* Single buzzer master toggle drives all four buzzer keys */
+  const bz = document.getElementById("buzzerEnable").checked ? 1 : 0;
+  p.push("BZ=" + bz);   /* motor running sound  */
+  p.push("BF=" + bz);   /* tank full alert       */
+  p.push("BE=" + bz);   /* tank empty alert      */
+  p.push("BR=" + bz);   /* motor running alert   */
 
-});
+  btn.disabled = true;
+  status.className = "status";
+  status.innerText = "Saving settings...";
 
-btn.disabled=true;
-
-status.innerText="Saving settings...";
-
-fetch("/settings/set?data="+encodeURIComponent(p.join(";")))
-.then(r=>r.text())
-.then(t=>{
-status.className="status success";
-status.innerText=t;
-})
-.catch(()=>{
-status.className="status error";
-status.innerText="Failed to save settings";
-})
-.finally(()=>btn.disabled=false);
-
+  fetch("/settings/set?data=" + encodeURIComponent(p.join(";")))
+    .then(r => r.text())
+    .then(t => {
+      status.className = "status success";
+      status.innerText = t;
+    })
+    .catch(() => {
+      status.className = "status error";
+      status.innerText = "Failed to save settings";
+    })
+    .finally(() => btn.disabled = false);
 }
 
 function factoryReset(){
-if(confirm("Reset device to factory default?")){
-fetch("/factory_reset")
-.then(()=>alert("Device reset completed"));
-}
+  if (confirm("Reset device to factory default?")) {
+    fetch("/factory_reset")
+    .then(() => alert("Device reset completed"));
+  }
 }
 
 </script>
