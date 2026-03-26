@@ -3,27 +3,27 @@
  *
  * FIXES APPLIED:
  *  1. parseStatus() — positional split of @STATUS:ON:75:AUTO#
- *  2. buildSettingsJson() — keys now match HTML element IDs exactly:
- *       buzzerPump   → buzzerEnable
- *       buzzerFull   → buzzerTankFull
- *       buzzerEmpty  → buzzerTankEmpty
- *       dryRunEn     → dryRunGap_en
- *       testingEn    → testingGap_en   (etc.)
- *  3. buildTimerJson() — now returns keyed object {"slot1":{...},...}
- *     with "on"/"off" keys instead of array with "onTime"/"offTime"
- *  4. GET endpoints added for all pages:
- *       /get_status  /get_settings  /get_timer  /get_countdown  /get_twist
+ *  2. buildSettingsJson() — keys now match HTML element IDs exactly
+ *  3. buildTimerJson() — keyed object {"slot1":{...},...} with "on"/"off" keys
+ *  4. GET endpoints added for all pages
+ *  5. [NEW] EEPROM persistence — all user-set values saved to EEPROM and
+ *     restored on power-up so pages always show last values set by user
+ *  6. [NEW] Mode toggle endpoints now return {"mode":"..."} JSON so the
+ *     dashboard JS can update buttons/mode text WITHOUT touching water level,
+ *     fixing the spurious 100% level jump on mode switch
  */
 
 #include <Arduino.h>
 
 #if defined(ESP8266)
-#include <ESP8266WebServer.h>
-static ESP8266WebServer server(80);
+  #include <ESP8266WebServer.h>
+  static ESP8266WebServer server(80);
 #else
-#include <WebServer.h>
-static WebServer server(80);
+  #include <WebServer.h>
+  static WebServer server(80);
 #endif
+
+#include <EEPROM.h>
 
 #include "web_server.h"
 #include "timer_mode.h"
@@ -120,6 +120,156 @@ struct TwistCache {
   String offTime     = "18:00";
   String days        = "Mon,Tue,Wed,Thu,Fri,Sat,Sun";
 } g_twist;
+
+
+/* ======================================================
+   EEPROM PERSISTENCE
+   All user-configurable values are stored in EEPROM so
+   they survive power cycles. Strings are stored as fixed
+   char arrays. A magic number detects a blank/corrupt
+   EEPROM and falls back to firmware defaults.
+====================================================== */
+
+#define EEPROM_MAGIC  0xBEEFC0DE
+#define EEPROM_SIZE   512
+
+struct EEPROMData {
+  uint32_t magic;
+
+  /* Settings */
+  int dryRunGap, testingGap, maxRun, retryCount;
+  int lowVolt, highVolt, overLoad, underLoad, powerRestore;
+  int dryRunEn, testingEn, maxRunEn, retryEn;
+  int lowVoltEn, highVoltEn, overLoadEn, underLoadEn;
+  int buzzerPump, buzzerFull, buzzerEmpty;
+
+  /* Timer slots */
+  struct {
+    uint8_t enabled;
+    char    days[32];
+    char    onTime[6];
+    char    offTime[6];
+    int     gap;
+  } timer[5];
+
+  /* Countdown — only config, active state resets on boot */
+  int countdownDuration;
+
+  /* Twist — only config, active state resets on boot */
+  int  twistOnDuration;
+  int  twistOffDuration;
+  char twistOnTime[6];
+  char twistOffTime[6];
+  char twistDays[64];
+};
+
+static void saveToEEPROM() {
+  EEPROMData d;
+  memset(&d, 0, sizeof(d));
+
+  d.magic = EEPROM_MAGIC;
+
+  /* Settings */
+  d.dryRunGap    = g_settings.dryRunGap;
+  d.testingGap   = g_settings.testingGap;
+  d.maxRun       = g_settings.maxRun;
+  d.retryCount   = g_settings.retryCount;
+  d.lowVolt      = g_settings.lowVolt;
+  d.highVolt     = g_settings.highVolt;
+  d.overLoad     = g_settings.overLoad;
+  d.underLoad    = g_settings.underLoad;
+  d.powerRestore = g_settings.powerRestore;
+  d.dryRunEn     = g_settings.dryRunEn;
+  d.testingEn    = g_settings.testingEn;
+  d.maxRunEn     = g_settings.maxRunEn;
+  d.retryEn      = g_settings.retryEn;
+  d.lowVoltEn    = g_settings.lowVoltEn;
+  d.highVoltEn   = g_settings.highVoltEn;
+  d.overLoadEn   = g_settings.overLoadEn;
+  d.underLoadEn  = g_settings.underLoadEn;
+  d.buzzerPump   = g_settings.buzzerPump;
+  d.buzzerFull   = g_settings.buzzerFull;
+  d.buzzerEmpty  = g_settings.buzzerEmpty;
+
+  /* Timer */
+  for (int i = 0; i < 5; i++) {
+    d.timer[i].enabled = g_timer[i].enabled ? 1 : 0;
+    strncpy(d.timer[i].days,    g_timer[i].days.c_str(),    31); d.timer[i].days[31]   = 0;
+    strncpy(d.timer[i].onTime,  g_timer[i].onTime.c_str(),  5);  d.timer[i].onTime[5]  = 0;
+    strncpy(d.timer[i].offTime, g_timer[i].offTime.c_str(), 5);  d.timer[i].offTime[5] = 0;
+    d.timer[i].gap = g_timer[i].gap;
+  }
+
+  /* Countdown config */
+  d.countdownDuration = g_countdown.duration;
+
+  /* Twist config */
+  d.twistOnDuration  = g_twist.onDuration;
+  d.twistOffDuration = g_twist.offDuration;
+  strncpy(d.twistOnTime, g_twist.onTime.c_str(), 5);  d.twistOnTime[5]  = 0;
+  strncpy(d.twistOffTime, g_twist.offTime.c_str(), 5); d.twistOffTime[5] = 0;
+  strncpy(d.twistDays, g_twist.days.c_str(), 63);      d.twistDays[63]   = 0;
+
+  EEPROM.put(0, d);
+  EEPROM.commit();
+  Serial.println("💾 EEPROM saved");
+}
+
+static void loadFromEEPROM() {
+  EEPROMData d;
+  EEPROM.get(0, d);
+
+  if (d.magic != EEPROM_MAGIC) {
+    Serial.println("⚠️  EEPROM: no valid data, using firmware defaults");
+    return;
+  }
+
+  /* Settings */
+  g_settings.dryRunGap    = d.dryRunGap;
+  g_settings.testingGap   = d.testingGap;
+  g_settings.maxRun       = d.maxRun;
+  g_settings.retryCount   = d.retryCount;
+  g_settings.lowVolt      = d.lowVolt;
+  g_settings.highVolt     = d.highVolt;
+  g_settings.overLoad     = d.overLoad;
+  g_settings.underLoad    = d.underLoad;
+  g_settings.powerRestore = d.powerRestore;
+  g_settings.dryRunEn     = d.dryRunEn;
+  g_settings.testingEn    = d.testingEn;
+  g_settings.maxRunEn     = d.maxRunEn;
+  g_settings.retryEn      = d.retryEn;
+  g_settings.lowVoltEn    = d.lowVoltEn;
+  g_settings.highVoltEn   = d.highVoltEn;
+  g_settings.overLoadEn   = d.overLoadEn;
+  g_settings.underLoadEn  = d.underLoadEn;
+  g_settings.buzzerPump   = d.buzzerPump;
+  g_settings.buzzerFull   = d.buzzerFull;
+  g_settings.buzzerEmpty  = d.buzzerEmpty;
+
+  /* Timer */
+  for (int i = 0; i < 5; i++) {
+    g_timer[i].enabled = (d.timer[i].enabled != 0);
+    g_timer[i].days    = String(d.timer[i].days);
+    g_timer[i].onTime  = String(d.timer[i].onTime);
+    g_timer[i].offTime = String(d.timer[i].offTime);
+    g_timer[i].gap     = d.timer[i].gap;
+  }
+
+  /* Countdown config — never restore active state */
+  g_countdown.duration  = d.countdownDuration;
+  g_countdown.active    = false;
+  g_countdown.remaining = 0;
+
+  /* Twist config — never restore active state */
+  g_twist.onDuration  = d.twistOnDuration;
+  g_twist.offDuration = d.twistOffDuration;
+  g_twist.onTime      = String(d.twistOnTime);
+  g_twist.offTime     = String(d.twistOffTime);
+  g_twist.days        = String(d.twistDays);
+  g_twist.active      = false;
+
+  Serial.println("✅ EEPROM loaded — user settings restored");
+}
 
 
 /* ======================================================
@@ -229,7 +379,7 @@ static String jsonStr(const String &s) {
   return "\"" + s + "\"";
 }
 
-/* /get_status */
+/* /get_status  and  /status */
 static String buildStatusJson() {
   String j = "{";
   j += "\"motor\":"  + jsonStr(g_motorStatus) + ",";
@@ -238,27 +388,8 @@ static String buildStatusJson() {
   return j;
 }
 
-/* ======================================================
-   FIX: buildSettingsJson()
-   Keys MUST match the HTML element id="" attributes exactly.
-
-   Old broken keys  →  Correct keys (matching HTML ids)
-   ─────────────────────────────────────────────────────
-   "dryRunEn"       →  "dryRunGap_en"
-   "testingEn"      →  "testingGap_en"
-   "maxRunEn"       →  "maxRun_en"
-   "retryEn"        →  "retryCount_en"
-   "lowVoltEn"      →  "lowVolt_en"
-   "highVoltEn"     →  "highVolt_en"
-   "overLoadEn"     →  "overLoad_en"
-   "underLoadEn"    →  "underLoad_en"
-   "buzzerPump"     →  "buzzerEnable"
-   "buzzerFull"     →  "buzzerTankFull"
-   "buzzerEmpty"    →  "buzzerTankEmpty"
-====================================================== */
 static String buildSettingsJson() {
   String j = "{";
-  /* numeric inputs */
   j += "\"dryRunGap\":"       + String(g_settings.dryRunGap)    + ",";
   j += "\"testingGap\":"      + String(g_settings.testingGap)   + ",";
   j += "\"maxRun\":"          + String(g_settings.maxRun)       + ",";
@@ -268,7 +399,6 @@ static String buildSettingsJson() {
   j += "\"overLoad\":"        + String(g_settings.overLoad)     + ",";
   j += "\"underLoad\":"       + String(g_settings.underLoad)    + ",";
   j += "\"powerRestore\":"    + String(g_settings.powerRestore) + ",";
-  /* enable toggle checkboxes — keys match HTML id="dryRunGap_en" etc. */
   j += "\"dryRunGap_en\":"    + String(g_settings.dryRunEn)     + ",";
   j += "\"testingGap_en\":"   + String(g_settings.testingEn)    + ",";
   j += "\"maxRun_en\":"       + String(g_settings.maxRunEn)     + ",";
@@ -278,7 +408,6 @@ static String buildSettingsJson() {
   j += "\"overLoad_en\":"     + String(g_settings.overLoadEn)   + ",";
   j += "\"underLoad_en\":"    + String(g_settings.underLoadEn)  + ",";
   j += "\"powerRestore_en\":1,";
-  /* buzzer checkboxes — keys match HTML id="buzzerEnable" etc. */
   j += "\"buzzerEnable\":"       + String(g_settings.buzzerPump)  + ",";
   j += "\"buzzerTankFull\":"     + String(g_settings.buzzerFull)  + ",";
   j += "\"buzzerTankEmpty\":"    + String(g_settings.buzzerEmpty) + ",";
@@ -286,12 +415,6 @@ static String buildSettingsJson() {
   return j;
 }
 
-/* ======================================================
-   FIX: buildTimerJson()
-   Old code returned: {"slots":[{"onTime":"06:00","offTime":"08:00",...},...]}
-   JS reads:          data["slot1"].on  /  data["slot1"].off
-   Fix: return keyed object with "on"/"off" fields, no array wrapper.
-====================================================== */
 static String buildTimerJson() {
   String j = "{";
   for (int i = 0; i < 5; i++) {
@@ -306,7 +429,6 @@ static String buildTimerJson() {
   return j;
 }
 
-/* /get_countdown */
 static String buildCountdownJson() {
   String j = "{";
   j += "\"active\":"    + String(g_countdown.active ? 1 : 0) + ",";
@@ -315,7 +437,6 @@ static String buildCountdownJson() {
   return j;
 }
 
-/* /get_twist */
 static String buildTwistJson() {
   String j = "{";
   j += "\"active\":"      + String(g_twist.active ? 1 : 0) + ",";
@@ -325,6 +446,12 @@ static String buildTwistJson() {
   j += "\"offTime\":"     + jsonStr(g_twist.offTime)        + ",";
   j += "\"days\":"        + jsonStr(g_twist.days)           + "}";
   return j;
+}
+
+/* Helper: returns just {"mode":"..."} — used by toggle endpoints so the
+   dashboard JS can update buttons without disturbing the water level. */
+static String buildModeJson() {
+  return "{\"mode\":" + jsonStr(g_liveMode) + "}";
 }
 
 static void setCORSHeaders() {
@@ -340,6 +467,10 @@ static void setCORSHeaders() {
 void start_webserver() {
   pinMode(MOTOR_PIN, OUTPUT);
   digitalWrite(MOTOR_PIN, LOW);
+
+  /* ── EEPROM: initialise and restore user values ── */
+  EEPROM.begin(EEPROM_SIZE);
+  loadFromEEPROM();
 
   /* ── Main dashboard ── */
   server.on("/", HTTP_GET, []() {
@@ -378,20 +509,27 @@ void start_webserver() {
     server.send(200, "application/json", buildTwistJson());
   });
 
-  /* ── MODE TOGGLES ── */
+  /* ── MODE TOGGLES ──
+     FIX: return {"mode":"..."} JSON instead of plain "OK" so the
+     dashboard JS can update buttons and mode text without re-fetching
+     the full status (which was causing the spurious 100% level jump).
+  ── */
   server.on("/auto_toggle", HTTP_GET, []() {
+    setCORSHeaders();
     setMode("AUTO");
-    server.send(200, "text/plain", "OK");
+    server.send(200, "application/json", buildModeJson());
   });
 
   server.on("/manual_toggle", HTTP_GET, []() {
+    setCORSHeaders();
     setMode("MANUAL");
-    server.send(200, "text/plain", "OK");
+    server.send(200, "application/json", buildModeJson());
   });
 
   server.on("/semi_toggle", HTTP_GET, []() {
+    setCORSHeaders();
     setMode("SEMIAUTO");
-    server.send(200, "text/plain", "OK");
+    server.send(200, "application/json", buildModeJson());
   });
 
   /* ── TIMER PAGE ── */
@@ -429,6 +567,7 @@ void start_webserver() {
     if (anyEnabled) setMode("TIMER");
     else            setMode("STANDBY");
 
+    saveToEEPROM();  /* persist timer settings */
     server.send(200, "text/plain", "Timer Updated");
   });
 
@@ -449,6 +588,7 @@ void start_webserver() {
     sendPacket("@COUNTDOWN:ON:" + String(dur) + "#");
     setMode("COUNTDOWN");
 
+    saveToEEPROM();  /* persist countdown duration */
     server.send(200, "text/plain", "Countdown Started");
   });
 
@@ -459,6 +599,9 @@ void start_webserver() {
     sendPacket("@COUNTDOWN:OFF#");
     setMode("STANDBY");
 
+    /* Note: only duration (config) is saved; active=false is not persisted
+       because countdown should never auto-resume after power cycle */
+    saveToEEPROM();
     server.send(200, "text/plain", "Countdown Stopped");
   });
 
@@ -487,6 +630,7 @@ void start_webserver() {
                + String(offH) + ":" + String(offM) + "#");
 
     setMode("TWIST");
+    saveToEEPROM();  /* persist twist settings */
     server.send(200, "text/plain", "Twist Updated");
   });
 
@@ -494,6 +638,7 @@ void start_webserver() {
     g_twist.active = false;
     sendPacket("@TWIST:OFF#");
     setMode("STANDBY");
+    saveToEEPROM();
     server.send(200, "text/plain", "Twist Stopped");
   });
 
@@ -529,6 +674,7 @@ void start_webserver() {
       g_settings.buzzerEmpty
     );
 
+    saveToEEPROM();  /* persist settings */
     server.send(200, "text/plain", "Settings Updated");
   });
 

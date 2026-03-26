@@ -101,13 +101,28 @@ h1{
   color:#000;
   font-weight:700;
 }
+/* ── Time row: two groups side by side ── */
 .time-row{
   display:flex;
-  gap:12px;
+  gap:16px;
   margin-top:10px;
 }
-.time-row input{
+.time-group{
+  display:flex;
+  flex-direction:column;
   flex:1;
+  gap:4px;
+}
+.time-label{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--primary);
+  opacity:.85;
+}
+.time-group input{
+  width:100%;
   padding:10px;
   border-radius:8px;
   border:1px solid #334155;
@@ -115,7 +130,7 @@ h1{
   color:#fff;
   font-size:15px;
 }
-.time-row input:disabled{
+.time-group input:disabled{
   opacity:.4;
 }
 button{
@@ -170,8 +185,14 @@ function makeSlot(n){
       ${DAYS.map(d=>`<div class="day" data-d="${d}">${d.toUpperCase()}</div>`).join("")}
     </div>
     <div class="time-row">
-      <input type="time" id="on${n}" disabled>
-      <input type="time" id="off${n}" disabled>
+      <div class="time-group">
+        <span class="time-label">ON Time</span>
+        <input type="time" id="on${n}" disabled>
+      </div>
+      <div class="time-group">
+        <span class="time-label">OFF Time</span>
+        <input type="time" id="off${n}" disabled>
+      </div>
     </div>
   </div>`;
 }
@@ -193,7 +214,6 @@ document.addEventListener("click", function(e){
   }
 });
 
-/* FIX: was '/timer/get' — correct endpoint is '/get_timer' */
 window.onload = function(){
   fetch('/get_timer')
   .then(res => res.json())
