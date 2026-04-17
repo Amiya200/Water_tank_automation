@@ -6,6 +6,7 @@ const char* htmlContent = R"rawliteral(
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Water Tank Controller</title>
+
 <style>
 body {
   font-family: 'Segoe UI', sans-serif;
@@ -15,6 +16,8 @@ body {
   padding: 20px;
   text-align: center;
 }
+
+/* Tank */
 .tank-level {
   width: 130px;
   height: 200px;
@@ -35,13 +38,43 @@ body {
   font-weight: bold;
   transition: height .5s;
 }
-.status {
-  font-size: 18px;
+
+/* Mode text (small, read-only) */
+.mode-text {
+  font-size: 16px;
   font-weight: 600;
-  margin-bottom: 25px;
+  margin-bottom: 15px;
+  color: #0a192f;
 }
-.on { color: #00a152; }
-.off { color: #d32f2f; }
+
+/* ⭐ Motor status button — replaces old status div + separate motor button.
+   Clicking this toggles the motor and the label itself reflects state. */
+.motor-status-btn {
+  display: block;
+  margin: 10px auto 20px auto;
+  padding: 18px 30px;
+  min-width: 220px;
+  border: none;
+  border-radius: 14px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.3s;
+}
+.motor-status-btn:active {
+  transform: scale(0.97);
+}
+.motor-off {
+  background: linear-gradient(135deg, #ff5252, #b71c1c);
+  box-shadow: 0 0 12px rgba(255, 0, 0, 0.35);
+}
+.motor-on {
+  background: linear-gradient(135deg, #00c853, #1b5e20);
+  box-shadow: 0 0 14px rgba(0, 255, 0, 0.45);
+}
+
+/* Grid */
 .button-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -49,112 +82,139 @@ body {
   max-width: 520px;
   margin: 0 auto;
 }
+
+/* Buttons */
 .button {
   padding: 14px;
   border: none;
-  border-radius: 10px;
-  font-size: 16px;
+  border-radius: 12px;
+  font-size: 15px;
   color: #fff;
   font-weight: 600;
   cursor: pointer;
   transition: 0.3s;
   text-decoration: none;
   display: inline-block;
-  text-align: center;
 }
-.manual-off { background: #1e88e5; }
-.manual-on { background: #0d47a1; }
+
+/* Mode Buttons */
 .semi-off { background: #fbc02d; color: #000; }
 .semi-on  { background: #f57f17; color: #000; }
-.auto-off { background: #43a047; }    
-.auto-on  { background: #1b5e20; }      
-.timer { background: #00acc1; color: #000; }
+.auto-off { background: #43a047; }
+.auto-on  { background: #1b5e20; }
+
+/* Other */
+.timer     { background: #00acc1; color: #000; }
 .countdown { background: #ef6c00; }
-.twist { background: #00695c; }
-.settings { background: #6a1b9a; }
+.twist     { background: #00695c; }
+.settings  { background: #6a1b9a; }
+
 @media (max-width: 520px) {
-  .button-grid { grid-template-columns: repeat(2, 1fr); max-width: 360px; }
-  .tank-level { width: 110px; height: 170px; }
+  .button-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
 </head>
+
 <body>
+
 <h2>Water Level</h2>
 <div class="tank-level">
   <div id="levelFill" class="tank-fill" style="height:0%">0%</div>
 </div>
-<h2>Status</h2>
-<div id="motorStatus" class="status off">Motor: OFF</div>
-<div id="modeStatus" class="status">Mode: UNKNOWN</div>
+
+<h2>Motor</h2>
+<!-- ⭐ Motor status IS the toggle button -->
+<button id="motorBtn" class="motor-status-btn motor-off" onclick="toggleMotor()">
+  Motor: OFF
+</button>
+
+<div id="modeStatus" class="mode-text">Mode: UNKNOWN</div>
+
 <h2>Controls</h2>
+
 <div class="button-grid">
-  <!-- Toggle Manual -->
-  <button id="manualBtn" class="button manual-off" onclick="toggleManual()">Manual Mode</button>
-  <!-- ⭐ NEW – Toggle AUTO MODE -->
+
   <button id="autoBtn" class="button auto-off" onclick="toggleAuto()">Auto Mode</button>
-  <!-- Toggle Semi-Auto -->
   <button id="semiBtn" class="button semi-off" onclick="toggleSemi()">Semi Auto</button>
-  <!-- Other Pages -->
-  <a class="button timer" href="/timer">Timer Mode</a>
+
+  <a class="button timer"     href="/timer">Timer</a>
   <a class="button countdown" href="/countdown">Countdown</a>
-  <a class="button twist" href="/twist">Twist</a>
-  <!-- ⭐ NEW – Settings Page -->
-  <a class="button settings" href="/settings">Settings</a>
+  <a class="button twist"     href="/twist">Twist</a>
+  <a class="button settings"  href="/settings">Settings</a>
+
 </div>
+
 <script>
+
+function renderMotor(state) {
+  const motorBtn = document.getElementById("motorBtn");
+  if (state === "ON") {
+    motorBtn.className = "motor-status-btn motor-on";
+    motorBtn.innerHTML = "⚡ Motor: ON";
+  } else {
+    motorBtn.className = "motor-status-btn motor-off";
+    motorBtn.innerHTML = "Motor: OFF";
+  }
+}
+
 async function fetchStatus() {
   try {
     const res = await fetch("/status");
-    if (!res.ok) return;
     const data = await res.json();
-    const motorEl = document.getElementById("motorStatus");
-    motorEl.innerHTML = "Motor: " + data.motor;
-    motorEl.className = "status " + (data.motor === "ON" ? "on" : "off");
+
+    // Motor (now shown on the toggle button itself)
+    renderMotor(data.motor);
+
+    // Mode
     document.getElementById("modeStatus").innerHTML = "Mode: " + data.mode;
-    let lvl = data.level;
-    if (typeof lvl !== 'number') lvl = parseInt(lvl) || 0;
+
+    // Tank
+    let lvl = parseInt(data.level) || 0;
     if (lvl < 0) lvl = 0;
     if (lvl > 100) lvl = 100;
     document.getElementById("levelFill").style.height = lvl + "%";
     document.getElementById("levelFill").innerHTML = lvl + "%";
-    updateButtons(data.mode);
+
+    updateModeButtons(data);
+
+  } catch (e) {}
+}
+
+function updateModeButtons(data) {
+  const mode = data.mode;
+
+  document.getElementById("autoBtn").className =
+    (mode === "AUTO") ? "button auto-on" : "button auto-off";
+
+  document.getElementById("semiBtn").className =
+    (mode === "SEMIAUTO") ? "button semi-on" : "button semi-off";
+}
+
+async function toggleAuto() {
+  await fetch("/auto_toggle");
+  fetchStatus();
+}
+
+async function toggleSemi() {
+  await fetch("/semi_toggle");
+  fetchStatus();
+}
+
+async function toggleMotor() {
+  try {
+    const res = await fetch("/motor_toggle");
+    const data = await res.json();
+    renderMotor(data.motor);
   } catch (e) {
-    console.log("fetchStatus error:", e);
+    fetchStatus(); // fallback
   }
 }
 
-function updateButtons(mode) {
-  const manualBtn = document.getElementById("manualBtn");
-  const semiBtn   = document.getElementById("semiBtn");
-  const autoBtn   = document.getElementById("autoBtn");
-  manualBtn.className = 
-    (mode === "MANUAL") ? "button manual-on" : "button manual-off";
-  semiBtn.className =
-    (mode === "SEMIAUTO") ? "button semi-on" : "button semi-off";
-  autoBtn.className =
-    (mode === "AUTO") ? "button auto-on" : "button auto-off";
-}
-async function toggleManual() {
-  try {
-    await fetch("/manual_toggle");
-    await fetchStatus();
-  } catch (e) { console.log(e); }
-}
-async function toggleSemi() {
-  try {
-    await fetch("/semi_toggle");
-    await fetchStatus();
-  } catch (e) { console.log(e); }
-}
-async function toggleAuto() {
-  try {
-    await fetch("/auto_toggle");
-    await fetchStatus();
-  } catch (e) { console.log(e); }
-}
 setInterval(fetchStatus, 1000);
 fetchStatus();
+
 </script>
+
 </body>
 </html>
 )rawliteral";
